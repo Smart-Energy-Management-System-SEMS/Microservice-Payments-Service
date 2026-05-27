@@ -1,20 +1,122 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+
+	"Microservice-Payments-Service/payments/application/commandservices"
+	"Microservice-Payments-Service/payments/application/eventhandlers"
+	"Microservice-Payments-Service/payments/application/queryservices"
+	appconfig "Microservice-Payments-Service/payments/infrastructure/configuration"
+	kafkaadapter "Microservice-Payments-Service/payments/infrastructure/messaging/kafka"
+	stripeadapter "Microservice-Payments-Service/payments/infrastructure/payments/stripe"
+	gormconfig "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/configuration"
+	gormrepos "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/repositories"
+	"Microservice-Payments-Service/payments/interfaces/rest/controllers"
 )
 
-//TIP <p>To run your code, right-click the code and select <b>Run</b>.</p> <p>Alternatively, click
-// the <icon src="AllIcons.Actions.Execute"/> icon in the gutter and select the <b>Run</b> menu item from here.</p>
 func main() {
-	//TIP <p>Press <shortcut actionId="ShowIntentionActions"/> when your caret is at the underlined text
-	// to see how GoLand suggests fixing the warning.</p><p>Alternatively, if available, click the lightbulb to view possible fixes.</p>
-	s := "gopher"
-	fmt.Println("Hello and welcome, %s!", s)
+	cfg := appconfig.Load()
 
-	for i := 1; i <= 5; i++ {
-		//TIP <p>To start your debugging session, right-click your code in the editor and select the Debug option.</p> <p>We have set one <icon src="AllIcons.Debugger.Db_set_breakpoint"/> breakpoint
-		// for you, but you can always add more by pressing <shortcut actionId="ToggleLineBreakpoint"/>.</p>
-		fmt.Println("i =", 100/i)
+	db, err := gormconfig.Connect(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("database connection failed: %v", err)
+	}
+	if cfg.AutoMigrate {
+		if err := gormconfig.AutoMigrate(db); err != nil {
+			log.Fatalf("database migration failed: %v", err)
+		}
+		log.Println("database automigration completed")
+	}
+
+	paymentMethodRepository := gormrepos.NewGormPaymentMethodRepository(db)
+	paymentRepository := gormrepos.NewGormPaymentRepository(db)
+	invoiceRepository := gormrepos.NewGormInvoiceRepository(db)
+	webhookEventRepository := gormrepos.NewGormWebhookEventRepository(db)
+
+	topics := kafkaadapter.Topics{
+		PaymentProcessed:             cfg.KafkaPaymentProcessedTopic,
+		PaymentFailed:                cfg.KafkaPaymentFailedTopic,
+		InvoiceGenerated:             cfg.KafkaInvoiceGeneratedTopic,
+		PaymentMethodAdded:           cfg.KafkaPaymentMethodAddedTopic,
+		SubscriptionCreated:          cfg.KafkaSubscriptionCreatedTopic,
+		SubscriptionRenewalRequested: cfg.KafkaSubscriptionRenewalRequestedTopic,
+		SubscriptionCancelled:        cfg.KafkaSubscriptionCancelledTopic,
+	}
+	publisher := kafkaadapter.NewProducer(cfg.KafkaBrokers, topics)
+	paymentProvider := stripeadapter.NewAdapter(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+
+	paymentMethodCommands := commandservices.NewPaymentMethodCommandService(paymentMethodRepository, paymentProvider, publisher)
+	paymentCommands := commandservices.NewPaymentCommandService(paymentRepository, paymentMethodRepository, invoiceRepository, paymentProvider, publisher)
+	webhookCommands := commandservices.NewWebhookCommandService(webhookEventRepository, paymentProvider, paymentCommands)
+
+	paymentMethodQueries := queryservices.NewPaymentMethodQueryService(paymentMethodRepository)
+	paymentQueries := queryservices.NewPaymentQueryService(paymentRepository)
+	invoiceQueries := queryservices.NewInvoiceQueryService(invoiceRepository)
+
+	subscriptionHandler := eventhandlers.NewSubscriptionEventsHandler(paymentCommands)
+	consumer := kafkaadapter.NewConsumer(cfg.KafkaBrokers, cfg.KafkaClientID, topics, subscriptionHandler)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := consumer.Start(ctx); err != nil {
+		log.Fatalf("kafka consumer startup failed: %v", err)
+	}
+
+	router := gin.New()
+	router.Use(gin.Logger(), gin.Recovery())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:  []string{"*"},
+		AllowMethods:  []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:  []string{"Origin", "Content-Type", "Authorization", "Stripe-Signature"},
+		ExposeHeaders: []string{"Content-Length"},
+		MaxAge:        12 * time.Hour,
+	}))
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "payments-service"})
+	})
+
+	controllers.RegisterRoutes(router, cfg.APIBasePath, controllers.Controllers{
+		PaymentMethods: controllers.NewPaymentMethodController(paymentMethodCommands, paymentMethodQueries),
+		Payments:       controllers.NewPaymentController(paymentCommands, paymentQueries, cfg.StripeCurrency),
+		Invoices:       controllers.NewInvoiceController(invoiceQueries),
+		Webhooks:       controllers.NewWebhookController(webhookCommands),
+	})
+
+	server := &http.Server{Addr: ":" + cfg.ServerPort, Handler: router}
+	go func() {
+		log.Printf("payments service listening on port %s", cfg.ServerPort)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server failed: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("shutting down payments service")
+
+	cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("server shutdown error: %v", err)
+	}
+	if err := consumer.Close(); err != nil {
+		log.Printf("kafka consumer close error: %v", err)
+	}
+	if err := publisher.Close(); err != nil {
+		log.Printf("kafka producer close error: %v", err)
+	}
+	if sqlDB, err := db.DB(); err == nil {
+		_ = sqlDB.Close()
 	}
 }
