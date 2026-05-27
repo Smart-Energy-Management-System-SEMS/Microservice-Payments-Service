@@ -43,7 +43,7 @@ Copia `.env.example` a `.env` y configura los valores reales. El archivo `.env` 
 ```bash
 SERVER_PORT=8085
 API_BASE_PATH=/api/v1
-DB_AUTO_MIGRATE=true
+DB_AUTO_MIGRATE=false
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
 STRIPE_SECRET_KEY=sk_test_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
