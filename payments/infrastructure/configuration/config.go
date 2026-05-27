@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	AppEnv                                 string
 	ServerPort                             string
 	APIBasePath                            string
 	AutoMigrate                            bool
@@ -32,6 +33,7 @@ func Load() Config {
 		log.Printf(".env not loaded, using environment variables: %v", err)
 	}
 	return Config{
+		AppEnv:                                 getEnv("APP_ENV", "development"),
 		ServerPort:                             getEnv("SERVER_PORT", "8085"),
 		APIBasePath:                            getEnv("API_BASE_PATH", "/api/v1"),
 		AutoMigrate:                            strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
