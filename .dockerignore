@@ -1,0 +1,16 @@
+.git
+.gitignore
+.idea
+*.iml
+.env
+.env.*
+!.env.example
+README.md
+Dockerfile
+Dockerfile.*
+docker-compose*.yml
+main.exe
+*.exe
+*.log
+tmp/
+coverage.out

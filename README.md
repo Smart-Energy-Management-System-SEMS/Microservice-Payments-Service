@@ -1,4 +1,4 @@
-# Microservice-Payments-Service
+﻿# Microservice-Payments-Service
 
 Payments Service para Smart Energy Management System (SEMS). El servicio procesa pagos, administra metodos de pago, registra invoices, recibe webhooks de Stripe y publica/consume eventos Kafka.
 
@@ -9,40 +9,41 @@ Payments Service para Smart Energy Management System (SEMS). El servicio procesa
 - PostgreSQL Neon con GORM
 - Stripe SDK oficial para Go
 - Apache Kafka con segmentio/kafka-go
+- Docker + Docker Compose
 - Variables de entorno con `.env`
 
 ## Estructura
 
 ```text
 payments/
-??? application/
-?   ??? commandservices/
-?   ??? eventhandlers/
-?   ??? outboundservices/
-?   ??? queryservices/
-??? domain/
-?   ??? model/
-?   ??? repositories/
-?   ??? services/
-??? infrastructure/
-?   ??? configuration/
-?   ??? messaging/kafka/
-?   ??? payments/stripe/
-?   ??? persistence/gorm/
-??? interfaces/
-?   ??? acl/
-?   ??? rest/
-??? shared/
+├── application/
+│   ├── commandservices/
+│   ├── eventhandlers/
+│   ├── outboundservices/
+│   └── queryservices/
+├── domain/
+│   ├── model/
+│   ├── repositories/
+│   └── services/
+├── infrastructure/
+│   ├── configuration/
+│   ├── messaging/kafka/
+│   ├── payments/stripe/
+│   └── persistence/gorm/
+├── interfaces/
+│   ├── acl/
+│   └── rest/
+└── shared/
 ```
 
 ## Variables de entorno
 
-Copia `.env.example` a `.env` y configura los valores reales:
+Copia `.env.example` a `.env` y configura los valores reales. El archivo `.env` esta ignorado por Git, por eso ahi van tus credenciales locales.
 
 ```bash
 SERVER_PORT=8085
 API_BASE_PATH=/api/v1
-DB_AUTO_MIGRATE=true
+DB_AUTO_MIGRATE=false
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
 STRIPE_SECRET_KEY=sk_test_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
@@ -51,7 +52,7 @@ KAFKA_BROKERS=localhost:9092
 KAFKA_CLIENT_ID=payments-service
 ```
 
-## Instalacion y ejecucion
+## Ejecutar local con Go
 
 ```bash
 go mod tidy
@@ -62,6 +63,112 @@ Compilar:
 
 ```bash
 go build main.go
+```
+
+## Ejecutar con Docker
+
+Construir imagen:
+
+```bash
+docker build -t sems-payments-service .
+```
+
+Ejecutar solo el servicio usando tu `.env` local:
+
+```bash
+docker run --rm --env-file .env -p 8085:8085 sems-payments-service
+```
+
+Si Kafka esta corriendo en tu maquina host y ejecutas el servicio dentro de Docker, usa en `.env`:
+
+```env
+KAFKA_BROKERS=host.docker.internal:9092
+```
+
+## Ejecutar con Docker Compose
+
+El `docker-compose.yml` levanta:
+
+- `payments-service`
+- `kafka` local para desarrollo
+
+Como la base de datos esta en Neon, no se levanta PostgreSQL local. El servicio usa `DATABASE_URL` desde `.env`.
+
+```bash
+docker compose up --build
+```
+
+Detener:
+
+```bash
+docker compose down
+```
+
+Eliminar tambien el volumen local de Kafka:
+
+```bash
+docker compose down -v
+```
+
+En Docker Compose, el servicio usa automaticamente:
+
+```env
+KAFKA_BROKERS=kafka:9092
+```
+
+Esto es correcto porque dentro de la red Docker el broker se llama `kafka`.
+
+
+## Keep-alive para Render
+
+Render puede dormir servicios gratuitos cuando no reciben trafico externo. Para reducir eso, este repo incluye scripts que hacen requests periodicos al endpoint `/health`.
+
+Importante: el keep-alive debe ejecutarse fuera de Render. Si el ping corre dentro del mismo servicio, no siempre cuenta como trafico externo y no es confiable para despertarlo.
+
+### Opcion recomendada: GitHub Actions
+
+El workflow esta en:
+
+```text
+.github/workflows/render-keepalive.yml
+```
+
+Corre cada 10 minutos y tambien se puede ejecutar manualmente desde GitHub Actions.
+
+Configura esta variable en GitHub:
+
+```text
+RENDER_SERVICE_URL=https://tu-servicio.onrender.com/health
+```
+
+Ruta en GitHub:
+
+```text
+Repository > Settings > Secrets and variables > Actions > Variables > New repository variable
+```
+
+### Opcion local Windows PowerShell
+
+```powershell
+.\scripts\keepalive.ps1 -Url https://tu-servicio.onrender.com/health
+```
+
+Con intervalo personalizado:
+
+```powershell
+.\scripts\keepalive.ps1 -Url https://tu-servicio.onrender.com/health -IntervalSeconds 600
+```
+
+### Opcion Linux/macOS
+
+```bash
+KEEPALIVE_URL=https://tu-servicio.onrender.com/health ./scripts/keepalive.sh
+```
+
+Con intervalo personalizado:
+
+```bash
+KEEPALIVE_URL=https://tu-servicio.onrender.com/health KEEPALIVE_INTERVAL_SECONDS=600 ./scripts/keepalive.sh
 ```
 
 ## Endpoints
@@ -169,3 +276,4 @@ Consume:
 - Domain contiene entidades, value objects, comandos, queries y contratos.
 - Infrastructure contiene Stripe, Kafka y GORM.
 - No hay foreign keys hacia otros microservicios; `subscription_id` y `user_id` son referencias externas.
+

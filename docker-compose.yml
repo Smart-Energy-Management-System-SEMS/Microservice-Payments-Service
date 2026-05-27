@@ -1,0 +1,49 @@
+services:
+  payments-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: payments-service
+    env_file:
+      - .env
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8085}
+      API_BASE_PATH: ${API_BASE_PATH:-/api/v1}
+      KAFKA_BROKERS: kafka:9092
+    ports:
+      - "${SERVER_PORT:-8085}:${SERVER_PORT:-8085}"
+    depends_on:
+      kafka:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - sems-payments-network
+
+  kafka:
+    image: bitnami/kafka:3.7.0
+    container_name: payments-kafka
+    environment:
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "9094:9094"
+    volumes:
+      - kafka_data:/bitnami/kafka
+    restart: unless-stopped
+    networks:
+      - sems-payments-network
+
+networks:
+  sems-payments-network:
+    driver: bridge
+
+volumes:
+  kafka_data:

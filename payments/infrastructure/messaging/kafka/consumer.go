@@ -2,7 +2,6 @@ package kafkaadapter
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"sync"
@@ -10,7 +9,7 @@ import (
 	segmentio "github.com/segmentio/kafka-go"
 
 	"Microservice-Payments-Service/payments/application/eventhandlers"
-	"Microservice-Payments-Service/payments/application/outboundservices"
+	"Microservice-Payments-Service/payments/interfaces/acl"
 )
 
 type Consumer struct {
@@ -32,22 +31,22 @@ func (c *Consumer) Start(ctx context.Context) error {
 		return nil
 	}
 	c.consume(ctx, c.topics.SubscriptionCreated, func(ctx context.Context, value []byte) error {
-		var event outboundservices.SubscriptionCreatedEvent
-		if err := json.Unmarshal(value, &event); err != nil {
+		event, err := acl.TranslateSubscriptionCreated(value)
+		if err != nil {
 			return err
 		}
 		return c.handler.HandleSubscriptionCreated(ctx, event)
 	})
 	c.consume(ctx, c.topics.SubscriptionRenewalRequested, func(ctx context.Context, value []byte) error {
-		var event outboundservices.SubscriptionRenewalRequestedEvent
-		if err := json.Unmarshal(value, &event); err != nil {
+		event, err := acl.TranslateSubscriptionRenewalRequested(value)
+		if err != nil {
 			return err
 		}
 		return c.handler.HandleSubscriptionRenewalRequested(ctx, event)
 	})
 	c.consume(ctx, c.topics.SubscriptionCancelled, func(ctx context.Context, value []byte) error {
-		var event outboundservices.SubscriptionCancelledEvent
-		if err := json.Unmarshal(value, &event); err != nil {
+		event, err := acl.TranslateSubscriptionCancelled(value)
+		if err != nil {
 			return err
 		}
 		return c.handler.HandleSubscriptionCancelled(ctx, event)

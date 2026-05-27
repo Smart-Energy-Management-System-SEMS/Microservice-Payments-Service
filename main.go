@@ -21,10 +21,12 @@ import (
 	gormconfig "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/configuration"
 	gormrepos "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/repositories"
 	"Microservice-Payments-Service/payments/interfaces/rest/controllers"
+	sharedinfra "Microservice-Payments-Service/payments/shared/infrastructure"
 )
 
 func main() {
 	cfg := appconfig.Load()
+	sharedinfra.ConfigureLogger(cfg.AppEnv)
 
 	db, err := gormconfig.Connect(cfg.DatabaseURL)
 	if err != nil {
