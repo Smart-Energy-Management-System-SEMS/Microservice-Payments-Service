@@ -1,4 +1,4 @@
-# Microservice-Payments-Service
+﻿# Microservice-Payments-Service
 
 Payments Service para Smart Energy Management System (SEMS). El servicio procesa pagos, administra metodos de pago, registra invoices, recibe webhooks de Stripe y publica/consume eventos Kafka.
 
@@ -9,35 +9,36 @@ Payments Service para Smart Energy Management System (SEMS). El servicio procesa
 - PostgreSQL Neon con GORM
 - Stripe SDK oficial para Go
 - Apache Kafka con segmentio/kafka-go
+- Docker + Docker Compose
 - Variables de entorno con `.env`
 
 ## Estructura
 
 ```text
 payments/
-??? application/
-?   ??? commandservices/
-?   ??? eventhandlers/
-?   ??? outboundservices/
-?   ??? queryservices/
-??? domain/
-?   ??? model/
-?   ??? repositories/
-?   ??? services/
-??? infrastructure/
-?   ??? configuration/
-?   ??? messaging/kafka/
-?   ??? payments/stripe/
-?   ??? persistence/gorm/
-??? interfaces/
-?   ??? acl/
-?   ??? rest/
-??? shared/
+├── application/
+│   ├── commandservices/
+│   ├── eventhandlers/
+│   ├── outboundservices/
+│   └── queryservices/
+├── domain/
+│   ├── model/
+│   ├── repositories/
+│   └── services/
+├── infrastructure/
+│   ├── configuration/
+│   ├── messaging/kafka/
+│   ├── payments/stripe/
+│   └── persistence/gorm/
+├── interfaces/
+│   ├── acl/
+│   └── rest/
+└── shared/
 ```
 
 ## Variables de entorno
 
-Copia `.env.example` a `.env` y configura los valores reales:
+Copia `.env.example` a `.env` y configura los valores reales. El archivo `.env` esta ignorado por Git, por eso ahi van tus credenciales locales.
 
 ```bash
 SERVER_PORT=8085
@@ -51,7 +52,7 @@ KAFKA_BROKERS=localhost:9092
 KAFKA_CLIENT_ID=payments-service
 ```
 
-## Instalacion y ejecucion
+## Ejecutar local con Go
 
 ```bash
 go mod tidy
@@ -63,6 +64,59 @@ Compilar:
 ```bash
 go build main.go
 ```
+
+## Ejecutar con Docker
+
+Construir imagen:
+
+```bash
+docker build -t sems-payments-service .
+```
+
+Ejecutar solo el servicio usando tu `.env` local:
+
+```bash
+docker run --rm --env-file .env -p 8085:8085 sems-payments-service
+```
+
+Si Kafka esta corriendo en tu maquina host y ejecutas el servicio dentro de Docker, usa en `.env`:
+
+```env
+KAFKA_BROKERS=host.docker.internal:9092
+```
+
+## Ejecutar con Docker Compose
+
+El `docker-compose.yml` levanta:
+
+- `payments-service`
+- `kafka` local para desarrollo
+
+Como la base de datos esta en Neon, no se levanta PostgreSQL local. El servicio usa `DATABASE_URL` desde `.env`.
+
+```bash
+docker compose up --build
+```
+
+Detener:
+
+```bash
+docker compose down
+```
+
+Eliminar tambien el volumen local de Kafka:
+
+```bash
+docker compose down -v
+```
+
+En Docker Compose, el servicio usa automaticamente:
+
+```env
+KAFKA_BROKERS=kafka:9092
+```
+
+Esto es correcto porque dentro de la red Docker el broker se llama `kafka`.
 
 ## Endpoints
 
