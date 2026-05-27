@@ -45,7 +45,7 @@ func (r *GormWebhookEventRepository) ExistsByProviderEventID(ctx context.Context
 func (r *GormWebhookEventRepository) MarkProcessed(ctx context.Context, id uuid.UUID) error {
 	now := time.Now().UTC()
 	return r.db.WithContext(ctx).Model(&gormmodel.PaymentWebhookEventModel{}).Where("event_id = ?", id).Updates(map[string]interface{}{
-		"processed": true,
+		"processed":    true,
 		"processed_at": now,
 	}).Error
 }

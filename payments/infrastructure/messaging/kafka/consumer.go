@@ -14,12 +14,12 @@ import (
 )
 
 type Consumer struct {
-	brokers []string
+	brokers  []string
 	clientID string
-	topics Topics
-	handler *eventhandlers.SubscriptionEventsHandler
-	readers []*segmentio.Reader
-	wg sync.WaitGroup
+	topics   Topics
+	handler  *eventhandlers.SubscriptionEventsHandler
+	readers  []*segmentio.Reader
+	wg       sync.WaitGroup
 }
 
 func NewConsumer(brokers []string, clientID string, topics Topics, handler *eventhandlers.SubscriptionEventsHandler) *Consumer {
@@ -71,9 +71,9 @@ func (c *Consumer) consume(ctx context.Context, topic string, handle func(contex
 		return
 	}
 	reader := segmentio.NewReader(segmentio.ReaderConfig{
-		Brokers: c.brokers,
-		Topic: topic,
-		GroupID: c.clientID + "-group",
+		Brokers:  c.brokers,
+		Topic:    topic,
+		GroupID:  c.clientID + "-group",
 		MinBytes: 1,
 		MaxBytes: 10e6,
 	})

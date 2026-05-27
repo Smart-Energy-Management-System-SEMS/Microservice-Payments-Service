@@ -12,13 +12,13 @@ import (
 )
 
 type Topics struct {
-	PaymentProcessed              string
-	PaymentFailed                 string
-	InvoiceGenerated              string
-	PaymentMethodAdded            string
-	SubscriptionCreated           string
-	SubscriptionRenewalRequested  string
-	SubscriptionCancelled         string
+	PaymentProcessed             string
+	PaymentFailed                string
+	InvoiceGenerated             string
+	PaymentMethodAdded           string
+	SubscriptionCreated          string
+	SubscriptionRenewalRequested string
+	SubscriptionCancelled        string
 }
 
 type Producer struct {
@@ -33,54 +33,54 @@ func NewProducer(brokers []string, topics Topics) *Producer {
 
 func (p *Producer) PublishPaymentProcessed(ctx context.Context, payment entities.Payment, invoice entities.Invoice) error {
 	return p.publish(ctx, p.topics.PaymentProcessed, payment.PaymentID.String(), map[string]interface{}{
-		"event_type": "payment.processed",
-		"occurred_at": time.Now().UTC(),
-		"payment_id": payment.PaymentID,
+		"event_type":      "payment.processed",
+		"occurred_at":     time.Now().UTC(),
+		"payment_id":      payment.PaymentID,
 		"subscription_id": payment.SubscriptionID,
-		"user_id": payment.UserID,
-		"amount": payment.Amount,
-		"currency": payment.Currency,
-		"status": payment.Status.String(),
-		"invoice_id": invoice.InvoiceID,
+		"user_id":         payment.UserID,
+		"amount":          payment.Amount,
+		"currency":        payment.Currency,
+		"status":          payment.Status.String(),
+		"invoice_id":      invoice.InvoiceID,
 	})
 }
 
 func (p *Producer) PublishPaymentFailed(ctx context.Context, payment entities.Payment) error {
 	return p.publish(ctx, p.topics.PaymentFailed, payment.PaymentID.String(), map[string]interface{}{
-		"event_type": "payment.failed",
-		"occurred_at": time.Now().UTC(),
-		"payment_id": payment.PaymentID,
+		"event_type":      "payment.failed",
+		"occurred_at":     time.Now().UTC(),
+		"payment_id":      payment.PaymentID,
 		"subscription_id": payment.SubscriptionID,
-		"user_id": payment.UserID,
-		"amount": payment.Amount,
-		"currency": payment.Currency,
-		"status": payment.Status.String(),
+		"user_id":         payment.UserID,
+		"amount":          payment.Amount,
+		"currency":        payment.Currency,
+		"status":          payment.Status.String(),
 	})
 }
 
 func (p *Producer) PublishInvoiceGenerated(ctx context.Context, invoice entities.Invoice) error {
 	return p.publish(ctx, p.topics.InvoiceGenerated, invoice.InvoiceID.String(), map[string]interface{}{
-		"event_type": "invoice.generated",
-		"occurred_at": time.Now().UTC(),
-		"invoice_id": invoice.InvoiceID,
-		"payment_id": invoice.PaymentID,
+		"event_type":     "invoice.generated",
+		"occurred_at":    time.Now().UTC(),
+		"invoice_id":     invoice.InvoiceID,
+		"payment_id":     invoice.PaymentID,
 		"invoice_number": invoice.InvoiceNumber,
-		"issued_at": invoice.IssuedAt,
-		"total_amount": invoice.TotalAmount,
-		"pdf_url": invoice.PDFURL,
+		"issued_at":      invoice.IssuedAt,
+		"total_amount":   invoice.TotalAmount,
+		"pdf_url":        invoice.PDFURL,
 	})
 }
 
 func (p *Producer) PublishPaymentMethodAdded(ctx context.Context, method entities.PaymentMethod) error {
 	return p.publish(ctx, p.topics.PaymentMethodAdded, method.PaymentMethodID.String(), map[string]interface{}{
-		"event_type": "payment.method.added",
-		"occurred_at": time.Now().UTC(),
+		"event_type":        "payment.method.added",
+		"occurred_at":       time.Now().UTC(),
 		"payment_method_id": method.PaymentMethodID,
-		"user_id": method.UserID,
-		"type": method.Type,
-		"brand": method.Brand,
-		"last4": method.Last4,
-		"is_default": method.IsDefault,
+		"user_id":           method.UserID,
+		"type":              method.Type,
+		"brand":             method.Brand,
+		"last4":             method.Last4,
+		"is_default":        method.IsDefault,
 	})
 }
 

@@ -37,10 +37,10 @@ func (ctl *PaymentMethodController) Register(c *gin.Context) {
 		return
 	}
 	method, err := ctl.commands.Register(c.Request.Context(), commands.RegisterPaymentMethodCommand{
-		UserID: request.UserID,
-		Type: request.Type,
+		UserID:                request.UserID,
+		Type:                  request.Type,
 		StripePaymentMethodID: request.StripePaymentMethodID,
-		IsDefault: request.IsDefault,
+		IsDefault:             request.IsDefault,
 	})
 	if err != nil {
 		sharedinterfaces.RespondError(c, err)

@@ -31,7 +31,7 @@ func (ctl *WebhookController) HandleStripe(c *gin.Context) {
 		return
 	}
 	event, duplicate, err := ctl.commands.HandleStripe(c.Request.Context(), commands.HandleStripeWebhookCommand{
-		Payload: payload,
+		Payload:   payload,
 		Signature: c.GetHeader("Stripe-Signature"),
 	})
 	if duplicate {

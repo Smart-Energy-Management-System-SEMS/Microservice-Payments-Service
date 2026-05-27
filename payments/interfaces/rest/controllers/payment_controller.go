@@ -15,8 +15,8 @@ import (
 )
 
 type PaymentController struct {
-	commands *commandservices.PaymentCommandService
-	queries  *queryservices.PaymentQueryService
+	commands        *commandservices.PaymentCommandService
+	queries         *queryservices.PaymentQueryService
 	defaultCurrency string
 }
 
@@ -41,12 +41,12 @@ func (ctl *PaymentController) Process(c *gin.Context) {
 		request.Currency = ctl.defaultCurrency
 	}
 	payment, invoice, err := ctl.commands.Process(c.Request.Context(), commands.ProcessPaymentCommand{
-		SubscriptionID: request.SubscriptionID,
-		UserID: request.UserID,
+		SubscriptionID:  request.SubscriptionID,
+		UserID:          request.UserID,
 		PaymentMethodID: request.PaymentMethodID,
-		Amount: request.Amount,
-		Currency: request.Currency,
-		PaymentMethod: request.PaymentMethod,
+		Amount:          request.Amount,
+		Currency:        request.Currency,
+		PaymentMethod:   request.PaymentMethod,
 	})
 	if err != nil {
 		sharedinterfaces.RespondError(c, err)

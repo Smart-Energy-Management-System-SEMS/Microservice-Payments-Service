@@ -9,16 +9,16 @@ import (
 
 func ToPaymentMethodResponse(method entities.PaymentMethod) resources.PaymentMethodResponse {
 	return resources.PaymentMethodResponse{
-		PaymentMethodID: method.PaymentMethodID.String(),
-		UserID: method.UserID.String(),
-		Type: method.Type,
-		Brand: method.Brand,
-		Last4: method.Last4,
-		ExpMonth: method.ExpMonth,
-		ExpYear: method.ExpYear,
+		PaymentMethodID:       method.PaymentMethodID.String(),
+		UserID:                method.UserID.String(),
+		Type:                  method.Type,
+		Brand:                 method.Brand,
+		Last4:                 method.Last4,
+		ExpMonth:              method.ExpMonth,
+		ExpYear:               method.ExpYear,
 		StripePaymentMethodID: method.StripePaymentMethodID,
-		IsDefault: method.IsDefault,
-		CreatedAt: formatTime(method.CreatedAt),
+		IsDefault:             method.IsDefault,
+		CreatedAt:             formatTime(method.CreatedAt),
 	}
 }
 
@@ -37,17 +37,17 @@ func ToPaymentResponse(payment entities.Payment) resources.PaymentResponse {
 		paidAt = &value
 	}
 	return resources.PaymentResponse{
-		PaymentID: payment.PaymentID.String(),
-		SubscriptionID: payment.SubscriptionID.String(),
-		UserID: payment.UserID.String(),
-		PaymentMethodID: payment.PaymentMethodID.String(),
-		Amount: payment.Amount,
-		Currency: payment.Currency,
-		Status: payment.Status.String(),
-		PaymentMethod: payment.PaymentMethod,
+		PaymentID:             payment.PaymentID.String(),
+		SubscriptionID:        payment.SubscriptionID.String(),
+		UserID:                payment.UserID.String(),
+		PaymentMethodID:       payment.PaymentMethodID.String(),
+		Amount:                payment.Amount,
+		Currency:              payment.Currency,
+		Status:                payment.Status.String(),
+		PaymentMethod:         payment.PaymentMethod,
 		StripePaymentIntentID: payment.StripePaymentIntentID,
-		PaidAt: paidAt,
-		CreatedAt: formatTime(payment.CreatedAt),
+		PaidAt:                paidAt,
+		CreatedAt:             formatTime(payment.CreatedAt),
 	}
 }
 
@@ -61,12 +61,12 @@ func ToPaymentResponses(payments []entities.Payment) []resources.PaymentResponse
 
 func ToInvoiceResponse(invoice entities.Invoice) resources.InvoiceResponse {
 	return resources.InvoiceResponse{
-		InvoiceID: invoice.InvoiceID.String(),
-		PaymentID: invoice.PaymentID.String(),
+		InvoiceID:     invoice.InvoiceID.String(),
+		PaymentID:     invoice.PaymentID.String(),
 		InvoiceNumber: invoice.InvoiceNumber,
-		IssuedAt: formatTime(invoice.IssuedAt),
-		TotalAmount: invoice.TotalAmount,
-		PDFURL: invoice.PDFURL,
+		IssuedAt:      formatTime(invoice.IssuedAt),
+		TotalAmount:   invoice.TotalAmount,
+		PDFURL:        invoice.PDFURL,
 	}
 }
 
