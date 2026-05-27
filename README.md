@@ -118,6 +118,59 @@ KAFKA_BROKERS=kafka:9092
 
 Esto es correcto porque dentro de la red Docker el broker se llama `kafka`.
 
+
+## Keep-alive para Render
+
+Render puede dormir servicios gratuitos cuando no reciben trafico externo. Para reducir eso, este repo incluye scripts que hacen requests periodicos al endpoint `/health`.
+
+Importante: el keep-alive debe ejecutarse fuera de Render. Si el ping corre dentro del mismo servicio, no siempre cuenta como trafico externo y no es confiable para despertarlo.
+
+### Opcion recomendada: GitHub Actions
+
+El workflow esta en:
+
+```text
+.github/workflows/render-keepalive.yml
+```
+
+Corre cada 10 minutos y tambien se puede ejecutar manualmente desde GitHub Actions.
+
+Configura esta variable en GitHub:
+
+```text
+RENDER_SERVICE_URL=https://tu-servicio.onrender.com/health
+```
+
+Ruta en GitHub:
+
+```text
+Repository > Settings > Secrets and variables > Actions > Variables > New repository variable
+```
+
+### Opcion local Windows PowerShell
+
+```powershell
+.\scripts\keepalive.ps1 -Url https://tu-servicio.onrender.com/health
+```
+
+Con intervalo personalizado:
+
+```powershell
+.\scripts\keepalive.ps1 -Url https://tu-servicio.onrender.com/health -IntervalSeconds 600
+```
+
+### Opcion Linux/macOS
+
+```bash
+KEEPALIVE_URL=https://tu-servicio.onrender.com/health ./scripts/keepalive.sh
+```
+
+Con intervalo personalizado:
+
+```bash
+KEEPALIVE_URL=https://tu-servicio.onrender.com/health KEEPALIVE_INTERVAL_SECONDS=600 ./scripts/keepalive.sh
+```
+
 ## Endpoints
 
 Base path por defecto: `/api/v1`.
@@ -223,3 +276,4 @@ Consume:
 - Domain contiene entidades, value objects, comandos, queries y contratos.
 - Infrastructure contiene Stripe, Kafka y GORM.
 - No hay foreign keys hacia otros microservicios; `subscription_id` y `user_id` son referencias externas.
+
