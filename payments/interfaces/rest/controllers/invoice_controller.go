@@ -7,7 +7,6 @@ import (
 
 	"Microservice-Payments-Service/payments/application/queryservices"
 	"Microservice-Payments-Service/payments/interfaces/rest/transform"
-	sharedinterfaces "Microservice-Payments-Service/payments/shared/interfaces"
 )
 
 type InvoiceController struct {
@@ -26,7 +25,7 @@ func (ctl *InvoiceController) RegisterRoutes(group *gin.RouterGroup) {
 func (ctl *InvoiceController) FindByID(c *gin.Context) {
 	invoice, err := ctl.queries.FindByID(c.Request.Context(), c.Param("invoiceId"))
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, transform.ToInvoiceResponse(*invoice))
@@ -35,7 +34,7 @@ func (ctl *InvoiceController) FindByID(c *gin.Context) {
 func (ctl *InvoiceController) FindByPaymentID(c *gin.Context) {
 	invoice, err := ctl.queries.FindByPaymentID(c.Request.Context(), c.Param("paymentId"))
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, transform.ToInvoiceResponse(*invoice))

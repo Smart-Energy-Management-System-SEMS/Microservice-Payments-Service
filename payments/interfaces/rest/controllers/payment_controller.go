@@ -11,7 +11,6 @@ import (
 	"Microservice-Payments-Service/payments/domain/model/queries"
 	"Microservice-Payments-Service/payments/interfaces/rest/resources"
 	"Microservice-Payments-Service/payments/interfaces/rest/transform"
-	sharedinterfaces "Microservice-Payments-Service/payments/shared/interfaces"
 )
 
 type PaymentController struct {
@@ -34,7 +33,7 @@ func (ctl *PaymentController) RegisterRoutes(group *gin.RouterGroup) {
 func (ctl *PaymentController) Process(c *gin.Context) {
 	var request resources.ProcessPaymentRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, sharedinterfaces.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 		return
 	}
 	if request.Currency == "" {
@@ -49,7 +48,7 @@ func (ctl *PaymentController) Process(c *gin.Context) {
 		PaymentMethod:   request.PaymentMethod,
 	})
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	response := resources.ProcessPaymentResponse{Payment: responsePointer(transform.ToPaymentResponse(*payment))}
@@ -62,7 +61,7 @@ func (ctl *PaymentController) Process(c *gin.Context) {
 func (ctl *PaymentController) FindByID(c *gin.Context) {
 	payment, err := ctl.queries.FindByID(c.Request.Context(), c.Param("paymentId"))
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, transform.ToPaymentResponse(*payment))
@@ -71,7 +70,7 @@ func (ctl *PaymentController) FindByID(c *gin.Context) {
 func (ctl *PaymentController) FindByUser(c *gin.Context) {
 	payments, err := ctl.queries.FindByUser(c.Request.Context(), queries.GetPaymentsByUserQuery{UserID: c.Param("userId")})
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, transform.ToPaymentResponses(payments))
@@ -80,7 +79,7 @@ func (ctl *PaymentController) FindByUser(c *gin.Context) {
 func (ctl *PaymentController) FindBySubscription(c *gin.Context) {
 	payments, err := ctl.queries.FindBySubscription(c.Request.Context(), queries.GetPaymentsBySubscriptionQuery{SubscriptionID: c.Param("subscriptionId")})
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, transform.ToPaymentResponses(payments))

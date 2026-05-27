@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 )
 
 type PaymentWebhookEvent struct {
@@ -22,7 +22,7 @@ type PaymentWebhookEvent struct {
 
 func NewPaymentWebhookEvent(provider, providerEventID, eventType string, payload json.RawMessage) PaymentWebhookEvent {
 	return PaymentWebhookEvent{
-		EventID:         shareddomain.NewID(),
+		EventID:         paymentdomain.NewID(),
 		Provider:        provider,
 		ProviderEventID: providerEventID,
 		EventType:       eventType,

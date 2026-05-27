@@ -9,12 +9,12 @@ import (
 	"gorm.io/gorm"
 
 	"Microservice-Payments-Service/payments/application/outboundservices"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 	"Microservice-Payments-Service/payments/domain/model/commands"
 	"Microservice-Payments-Service/payments/domain/model/entities"
 	"Microservice-Payments-Service/payments/domain/model/valueobjects"
 	"Microservice-Payments-Service/payments/domain/repositories"
 	"Microservice-Payments-Service/payments/domain/services"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
 )
 
 type PaymentCommandService struct {
@@ -31,17 +31,17 @@ func NewPaymentCommandService(payments repositories.PaymentRepository, paymentMe
 }
 
 func (s *PaymentCommandService) Process(ctx context.Context, command commands.ProcessPaymentCommand) (*entities.Payment, *entities.Invoice, error) {
-	subscriptionID, err := shareddomain.ParseID(command.SubscriptionID)
+	subscriptionID, err := paymentdomain.ParseID(command.SubscriptionID)
 	if err != nil {
-		return nil, nil, shareddomain.ErrInvalidUUID
+		return nil, nil, paymentdomain.ErrInvalidUUID
 	}
-	userID, err := shareddomain.ParseID(command.UserID)
+	userID, err := paymentdomain.ParseID(command.UserID)
 	if err != nil {
-		return nil, nil, shareddomain.ErrInvalidUUID
+		return nil, nil, paymentdomain.ErrInvalidUUID
 	}
-	paymentMethodID, err := shareddomain.ParseID(command.PaymentMethodID)
+	paymentMethodID, err := paymentdomain.ParseID(command.PaymentMethodID)
 	if err != nil {
-		return nil, nil, shareddomain.ErrInvalidUUID
+		return nil, nil, paymentdomain.ErrInvalidUUID
 	}
 
 	method, err := s.paymentMethods.FindByID(ctx, paymentMethodID)
@@ -49,7 +49,7 @@ func (s *PaymentCommandService) Process(ctx context.Context, command commands.Pr
 		return nil, nil, err
 	}
 	if method.UserID != userID {
-		return nil, nil, shareddomain.ErrUnauthorizedResource
+		return nil, nil, paymentdomain.ErrUnauthorizedResource
 	}
 
 	paymentMethodName := strings.TrimSpace(command.PaymentMethod)

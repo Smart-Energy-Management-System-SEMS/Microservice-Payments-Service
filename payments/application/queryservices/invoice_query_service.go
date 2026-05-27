@@ -3,9 +3,9 @@ package queryservices
 import (
 	"context"
 
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 	"Microservice-Payments-Service/payments/domain/model/entities"
 	"Microservice-Payments-Service/payments/domain/repositories"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
 )
 
 type InvoiceQueryService struct {
@@ -17,17 +17,17 @@ func NewInvoiceQueryService(repository repositories.InvoiceRepository) *InvoiceQ
 }
 
 func (s *InvoiceQueryService) FindByID(ctx context.Context, id string) (*entities.Invoice, error) {
-	invoiceID, err := shareddomain.ParseID(id)
+	invoiceID, err := paymentdomain.ParseID(id)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	return s.repository.FindByID(ctx, invoiceID)
 }
 
 func (s *InvoiceQueryService) FindByPaymentID(ctx context.Context, id string) (*entities.Invoice, error) {
-	paymentID, err := shareddomain.ParseID(id)
+	paymentID, err := paymentdomain.ParseID(id)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	return s.repository.FindByPaymentID(ctx, paymentID)
 }

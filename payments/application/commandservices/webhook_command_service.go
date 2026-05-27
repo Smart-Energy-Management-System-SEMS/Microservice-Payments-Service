@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"Microservice-Payments-Service/payments/application/outboundservices"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 	"Microservice-Payments-Service/payments/domain/model/commands"
 	"Microservice-Payments-Service/payments/domain/model/entities"
 	"Microservice-Payments-Service/payments/domain/model/valueobjects"
 	"Microservice-Payments-Service/payments/domain/repositories"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
 )
 
 type WebhookCommandService struct {
@@ -31,7 +31,7 @@ func (s *WebhookCommandService) HandleStripe(ctx context.Context, command comman
 		return nil, false, err
 	}
 	if exists {
-		return nil, true, shareddomain.ErrDuplicateWebhook
+		return nil, true, paymentdomain.ErrDuplicateWebhook
 	}
 
 	event := entities.NewPaymentWebhookEvent(valueobjects.WebhookProviderStripe, providerEvent.ProviderEventID, providerEvent.EventType, providerEvent.Payload)

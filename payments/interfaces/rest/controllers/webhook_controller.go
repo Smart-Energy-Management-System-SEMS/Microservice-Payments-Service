@@ -9,7 +9,6 @@ import (
 	"Microservice-Payments-Service/payments/application/commandservices"
 	"Microservice-Payments-Service/payments/domain/model/commands"
 	"Microservice-Payments-Service/payments/interfaces/rest/resources"
-	sharedinterfaces "Microservice-Payments-Service/payments/shared/interfaces"
 )
 
 type WebhookController struct {
@@ -27,7 +26,7 @@ func (ctl *WebhookController) RegisterRoutes(group *gin.RouterGroup) {
 func (ctl *WebhookController) HandleStripe(c *gin.Context) {
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, sharedinterfaces.ErrorResponse{Error: "invalid payload"})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid payload"})
 		return
 	}
 	event, duplicate, err := ctl.commands.HandleStripe(c.Request.Context(), commands.HandleStripeWebhookCommand{
@@ -39,7 +38,7 @@ func (ctl *WebhookController) HandleStripe(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	response := resources.WebhookResponse{Received: true}

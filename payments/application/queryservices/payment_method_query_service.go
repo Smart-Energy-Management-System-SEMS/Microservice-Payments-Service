@@ -3,10 +3,10 @@ package queryservices
 import (
 	"context"
 
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 	"Microservice-Payments-Service/payments/domain/model/entities"
 	"Microservice-Payments-Service/payments/domain/model/queries"
 	"Microservice-Payments-Service/payments/domain/repositories"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
 )
 
 type PaymentMethodQueryService struct {
@@ -18,9 +18,9 @@ func NewPaymentMethodQueryService(repository repositories.PaymentMethodRepositor
 }
 
 func (s *PaymentMethodQueryService) FindByUser(ctx context.Context, query queries.GetPaymentMethodsByUserQuery) ([]entities.PaymentMethod, error) {
-	userID, err := shareddomain.ParseID(query.UserID)
+	userID, err := paymentdomain.ParseID(query.UserID)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	return s.repository.FindByUserID(ctx, userID)
 }

@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 	"Microservice-Payments-Service/payments/domain/model/valueobjects"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
 )
 
 type Payment struct {
@@ -29,7 +29,7 @@ func NewPayment(subscriptionID, userID, paymentMethodID uuid.UUID, amount float6
 		return Payment{}, err
 	}
 	return Payment{
-		PaymentID:       shareddomain.NewID(),
+		PaymentID:       paymentdomain.NewID(),
 		SubscriptionID:  subscriptionID,
 		UserID:          userID,
 		PaymentMethodID: paymentMethodID,
