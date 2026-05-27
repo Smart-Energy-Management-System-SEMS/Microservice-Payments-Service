@@ -3,10 +3,10 @@ package queryservices
 import (
 	"context"
 
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 	"Microservice-Payments-Service/payments/domain/model/entities"
 	"Microservice-Payments-Service/payments/domain/model/queries"
 	"Microservice-Payments-Service/payments/domain/repositories"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
 )
 
 type PaymentQueryService struct {
@@ -18,25 +18,25 @@ func NewPaymentQueryService(repository repositories.PaymentRepository) *PaymentQ
 }
 
 func (s *PaymentQueryService) FindByID(ctx context.Context, id string) (*entities.Payment, error) {
-	paymentID, err := shareddomain.ParseID(id)
+	paymentID, err := paymentdomain.ParseID(id)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	return s.repository.FindByID(ctx, paymentID)
 }
 
 func (s *PaymentQueryService) FindByUser(ctx context.Context, query queries.GetPaymentsByUserQuery) ([]entities.Payment, error) {
-	userID, err := shareddomain.ParseID(query.UserID)
+	userID, err := paymentdomain.ParseID(query.UserID)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	return s.repository.FindByUserID(ctx, userID)
 }
 
 func (s *PaymentQueryService) FindBySubscription(ctx context.Context, query queries.GetPaymentsBySubscriptionQuery) ([]entities.Payment, error) {
-	subscriptionID, err := shareddomain.ParseID(query.SubscriptionID)
+	subscriptionID, err := paymentdomain.ParseID(query.SubscriptionID)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	return s.repository.FindBySubscriptionID(ctx, subscriptionID)
 }

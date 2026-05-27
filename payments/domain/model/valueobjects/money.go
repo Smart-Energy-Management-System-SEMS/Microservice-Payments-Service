@@ -3,7 +3,7 @@ package valueobjects
 import (
 	"strings"
 
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 )
 
 type Money struct {
@@ -13,11 +13,11 @@ type Money struct {
 
 func NewMoney(amount float64, currency string) (Money, error) {
 	if amount <= 0 {
-		return Money{}, shareddomain.ErrInvalidAmount
+		return Money{}, paymentdomain.ErrInvalidAmount
 	}
 	currency = strings.ToLower(strings.TrimSpace(currency))
 	if currency == "" {
-		return Money{}, shareddomain.ErrInvalidCurrency
+		return Money{}, paymentdomain.ErrInvalidCurrency
 	}
 	return Money{Amount: amount, Currency: currency}, nil
 }

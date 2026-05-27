@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"Microservice-Payments-Service/payments/application/outboundservices"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 	"Microservice-Payments-Service/payments/domain/model/commands"
 	"Microservice-Payments-Service/payments/domain/model/entities"
 	"Microservice-Payments-Service/payments/domain/repositories"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
 )
 
 type PaymentMethodCommandService struct {
@@ -22,13 +22,13 @@ func NewPaymentMethodCommandService(repository repositories.PaymentMethodReposit
 }
 
 func (s *PaymentMethodCommandService) Register(ctx context.Context, command commands.RegisterPaymentMethodCommand) (*entities.PaymentMethod, error) {
-	userID, err := shareddomain.ParseID(command.UserID)
+	userID, err := paymentdomain.ParseID(command.UserID)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	stripePaymentMethodID := strings.TrimSpace(command.StripePaymentMethodID)
 	if stripePaymentMethodID == "" {
-		return nil, shareddomain.ErrExternalProvider
+		return nil, paymentdomain.ErrExternalProvider
 	}
 
 	details, err := s.provider.GetPaymentMethodDetails(ctx, stripePaymentMethodID)
@@ -54,9 +54,9 @@ func (s *PaymentMethodCommandService) Register(ctx context.Context, command comm
 }
 
 func (s *PaymentMethodCommandService) SetDefault(ctx context.Context, command commands.SetDefaultPaymentMethodCommand) (*entities.PaymentMethod, error) {
-	paymentMethodID, err := shareddomain.ParseID(command.PaymentMethodID)
+	paymentMethodID, err := paymentdomain.ParseID(command.PaymentMethodID)
 	if err != nil {
-		return nil, shareddomain.ErrInvalidUUID
+		return nil, paymentdomain.ErrInvalidUUID
 	}
 	method, err := s.repository.FindByID(ctx, paymentMethodID)
 	if err != nil {
@@ -73,9 +73,9 @@ func (s *PaymentMethodCommandService) SetDefault(ctx context.Context, command co
 }
 
 func (s *PaymentMethodCommandService) Delete(ctx context.Context, command commands.DeletePaymentMethodCommand) error {
-	paymentMethodID, err := shareddomain.ParseID(command.PaymentMethodID)
+	paymentMethodID, err := paymentdomain.ParseID(command.PaymentMethodID)
 	if err != nil {
-		return shareddomain.ErrInvalidUUID
+		return paymentdomain.ErrInvalidUUID
 	}
 	return s.repository.Delete(ctx, paymentMethodID)
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 )
 
 type PaymentMethod struct {
@@ -23,7 +23,7 @@ type PaymentMethod struct {
 
 func NewPaymentMethod(userID uuid.UUID, methodType, brand, last4 string, expMonth, expYear int, stripePaymentMethodID string, isDefault bool) PaymentMethod {
 	return PaymentMethod{
-		PaymentMethodID:       shareddomain.NewID(),
+		PaymentMethodID:       paymentdomain.NewID(),
 		UserID:                userID,
 		Type:                  methodType,
 		Brand:                 brand,

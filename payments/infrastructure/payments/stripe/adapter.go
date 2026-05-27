@@ -14,7 +14,7 @@ import (
 	"github.com/stripe/stripe-go/v82/webhook"
 
 	"Microservice-Payments-Service/payments/application/outboundservices"
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 )
 
 const (
@@ -42,7 +42,7 @@ func (a *Adapter) GetPaymentMethodDetails(ctx context.Context, stripePaymentMeth
 	pm, err := paymentmethod.Get(stripePaymentMethodID, nil)
 	if err != nil {
 		a.recordFailure()
-		return nil, fmt.Errorf("%w: %v", shareddomain.ErrExternalProvider, err)
+		return nil, fmt.Errorf("%w: %v", paymentdomain.ErrExternalProvider, err)
 	}
 	a.recordSuccess()
 
@@ -64,7 +64,7 @@ func (a *Adapter) AttachPaymentMethod(ctx context.Context, stripePaymentMethodID
 	_, err := paymentmethod.Attach(stripePaymentMethodID, &stripesdk.PaymentMethodAttachParams{Customer: stripesdk.String(customerID)})
 	if err != nil {
 		a.recordFailure()
-		return fmt.Errorf("%w: %v", shareddomain.ErrExternalProvider, err)
+		return fmt.Errorf("%w: %v", paymentdomain.ErrExternalProvider, err)
 	}
 	a.recordSuccess()
 	return nil
@@ -88,7 +88,7 @@ func (a *Adapter) CreatePaymentIntent(ctx context.Context, request outboundservi
 	intent, err := paymentintent.New(params)
 	if err != nil {
 		a.recordFailure()
-		return nil, fmt.Errorf("%w: %v", shareddomain.ErrExternalProvider, err)
+		return nil, fmt.Errorf("%w: %v", paymentdomain.ErrExternalProvider, err)
 	}
 	a.recordSuccess()
 	return &outboundservices.PaymentIntentResult{ID: intent.ID, Status: string(intent.Status)}, nil
@@ -102,7 +102,7 @@ func (a *Adapter) ConfirmPaymentIntent(ctx context.Context, paymentIntentID stri
 	intent, err := paymentintent.Confirm(paymentIntentID, nil)
 	if err != nil {
 		a.recordFailure()
-		return nil, fmt.Errorf("%w: %v", shareddomain.ErrExternalProvider, err)
+		return nil, fmt.Errorf("%w: %v", paymentdomain.ErrExternalProvider, err)
 	}
 	a.recordSuccess()
 	return &outboundservices.PaymentIntentResult{ID: intent.ID, Status: string(intent.Status)}, nil
@@ -112,7 +112,7 @@ func (a *Adapter) ParseWebhookEvent(ctx context.Context, payload []byte, signatu
 	_ = ctx
 	event, err := webhook.ConstructEvent(payload, signature, a.webhookSecret)
 	if err != nil {
-		return nil, fmt.Errorf("%w: invalid stripe webhook signature", shareddomain.ErrExternalProvider)
+		return nil, fmt.Errorf("%w: invalid stripe webhook signature", paymentdomain.ErrExternalProvider)
 	}
 
 	providerEvent := &outboundservices.ProviderWebhookEvent{
@@ -125,7 +125,7 @@ func (a *Adapter) ParseWebhookEvent(ctx context.Context, payload []byte, signatu
 	case "payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.canceled":
 		var intent stripesdk.PaymentIntent
 		if err := json.Unmarshal(event.Data.Raw, &intent); err != nil {
-			return nil, fmt.Errorf("%w: %v", shareddomain.ErrExternalProvider, err)
+			return nil, fmt.Errorf("%w: %v", paymentdomain.ErrExternalProvider, err)
 		}
 		providerEvent.StripePaymentIntentID = intent.ID
 		providerEvent.PaymentStatus = string(intent.Status)
@@ -141,7 +141,7 @@ func (a *Adapter) allowRequest() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.failures >= breakerThreshold && time.Since(a.openedAt) < breakerCooldown {
-		return fmt.Errorf("%w: stripe circuit breaker open", shareddomain.ErrExternalProvider)
+		return fmt.Errorf("%w: stripe circuit breaker open", paymentdomain.ErrExternalProvider)
 	}
 	if a.failures >= breakerThreshold && time.Since(a.openedAt) >= breakerCooldown {
 		a.failures = 0

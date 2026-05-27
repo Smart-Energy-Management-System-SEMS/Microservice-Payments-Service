@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	shareddomain "Microservice-Payments-Service/payments/shared/domain"
+	paymentdomain "Microservice-Payments-Service/payments/domain"
 )
 
 type Invoice struct {
@@ -20,7 +20,7 @@ type Invoice struct {
 }
 
 func NewInvoice(paymentID uuid.UUID, totalAmount float64, pdfURL string) Invoice {
-	invoiceID := shareddomain.NewID()
+	invoiceID := paymentdomain.NewID()
 	shortID := strings.Split(invoiceID.String(), "-")[0]
 	return Invoice{
 		InvoiceID:     invoiceID,

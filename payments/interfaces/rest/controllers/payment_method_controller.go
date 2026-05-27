@@ -11,7 +11,6 @@ import (
 	"Microservice-Payments-Service/payments/domain/model/queries"
 	"Microservice-Payments-Service/payments/interfaces/rest/resources"
 	"Microservice-Payments-Service/payments/interfaces/rest/transform"
-	sharedinterfaces "Microservice-Payments-Service/payments/shared/interfaces"
 )
 
 type PaymentMethodController struct {
@@ -33,7 +32,7 @@ func (ctl *PaymentMethodController) RegisterRoutes(group *gin.RouterGroup) {
 func (ctl *PaymentMethodController) Register(c *gin.Context) {
 	var request resources.RegisterPaymentMethodRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, sharedinterfaces.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 		return
 	}
 	method, err := ctl.commands.Register(c.Request.Context(), commands.RegisterPaymentMethodCommand{
@@ -43,7 +42,7 @@ func (ctl *PaymentMethodController) Register(c *gin.Context) {
 		IsDefault:             request.IsDefault,
 	})
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, transform.ToPaymentMethodResponse(*method))
@@ -52,7 +51,7 @@ func (ctl *PaymentMethodController) Register(c *gin.Context) {
 func (ctl *PaymentMethodController) FindByUser(c *gin.Context) {
 	methods, err := ctl.queries.FindByUser(c.Request.Context(), queries.GetPaymentMethodsByUserQuery{UserID: c.Param("userId")})
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, transform.ToPaymentMethodResponses(methods))
@@ -61,7 +60,7 @@ func (ctl *PaymentMethodController) FindByUser(c *gin.Context) {
 func (ctl *PaymentMethodController) SetDefault(c *gin.Context) {
 	method, err := ctl.commands.SetDefault(c.Request.Context(), commands.SetDefaultPaymentMethodCommand{PaymentMethodID: c.Param("paymentMethodId")})
 	if err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, transform.ToPaymentMethodResponse(*method))
@@ -69,7 +68,7 @@ func (ctl *PaymentMethodController) SetDefault(c *gin.Context) {
 
 func (ctl *PaymentMethodController) Delete(c *gin.Context) {
 	if err := ctl.commands.Delete(c.Request.Context(), commands.DeletePaymentMethodCommand{PaymentMethodID: c.Param("paymentMethodId")}); err != nil {
-		sharedinterfaces.RespondError(c, err)
+		RespondError(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
