@@ -43,6 +43,7 @@ Copia `.env.example` a `.env` y configura los valores reales. El archivo `.env` 
 ```bash
 SERVER_PORT=8085
 API_BASE_PATH=/api/v1
+APP_ENV=development
 DB_AUTO_MIGRATE=false
 DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
 STRIPE_SECRET_KEY=sk_test_xxx
@@ -50,6 +51,13 @@ STRIPE_WEBHOOK_SECRET=whsec_xxx
 STRIPE_CURRENCY=pen
 KAFKA_BROKERS=localhost:9092
 KAFKA_CLIENT_ID=payments-service
+KAFKA_PAYMENT_PROCESSED_TOPIC=payment.processed
+KAFKA_PAYMENT_FAILED_TOPIC=payment.failed
+KAFKA_INVOICE_GENERATED_TOPIC=invoice.generated
+KAFKA_PAYMENT_METHOD_ADDED_TOPIC=payment.method.added
+KAFKA_SUBSCRIPTION_CREATED_TOPIC=subscription.created
+KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC=subscription.renewal.requested
+KAFKA_SUBSCRIPTION_CANCELLED_TOPIC=subscription.cancelled
 ```
 
 ## Ejecutar local con Go
@@ -251,6 +259,25 @@ POST /api/v1/webhooks/stripe
 ```
 
 El servicio valida `Stripe-Signature`, guarda el evento en `payment_webhook_events` y evita procesarlo dos veces usando `provider + provider_event_id`.
+
+## Seguridad y API Gateway
+
+- Este microservicio no implementa middleware JWT interno actualmente.
+- Recomendacion para SEMS: validar JWT y roles en el API Gateway.
+- Publicos recomendados:
+  - `GET /health`
+  - `POST /api/v1/webhooks/stripe` (con validacion de `Stripe-Signature`)
+- Protegidos recomendados con JWT:
+  - `POST /api/v1/payment-methods`
+  - `GET /api/v1/payment-methods/user/{userId}`
+  - `PUT /api/v1/payment-methods/{paymentMethodId}/default`
+  - `DELETE /api/v1/payment-methods/{paymentMethodId}`
+  - `POST /api/v1/payments/process`
+  - `GET /api/v1/payments/{paymentId}`
+  - `GET /api/v1/payments/user/{userId}`
+  - `GET /api/v1/payments/subscription/{subscriptionId}`
+  - `GET /api/v1/invoices/{invoiceId}`
+  - `GET /api/v1/invoices/payment/{paymentId}`
 
 ## Eventos Kafka
 
