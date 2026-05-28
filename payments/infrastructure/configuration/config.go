@@ -17,6 +17,8 @@ type Config struct {
 	APIBasePath                            string
 	AutoMigrate                            bool
 	ConfigServiceURL                       string
+	CORSAllowedOrigins                     []string
+	CORSAllowCredentials                   bool
 	DatabaseURL                            string
 	StripeSecretKey                        string
 	StripeWebhookSecret                    string
@@ -37,15 +39,17 @@ func Load() Config {
 		log.Printf(".env not loaded, using environment variables: %v", err)
 	}
 	cfg := Config{
-		AppEnv:              getEnv("APP_ENV", "development"),
-		ServerPort:          getEnv("SERVER_PORT", "8085"),
-		APIBasePath:         getEnv("API_BASE_PATH", "/api/v1"),
-		AutoMigrate:         strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
-		ConfigServiceURL:    getEnv("CONFIG_SERVICE_URL", ""),
-		DatabaseURL:         getEnv("DATABASE_URL", ""),
-		StripeSecretKey:     getEnv("STRIPE_SECRET_KEY", ""),
-		StripeWebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", ""),
-		StripeCurrency:      getEnv("STRIPE_CURRENCY", "pen"),
+		AppEnv:               getEnv("APP_ENV", "development"),
+		ServerPort:           getEnv("SERVER_PORT", "8085"),
+		APIBasePath:          getEnv("API_BASE_PATH", "/api/v1"),
+		AutoMigrate:          strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
+		ConfigServiceURL:     getEnv("CONFIG_SERVICE_URL", ""),
+		CORSAllowedOrigins:   splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173")),
+		CORSAllowCredentials: strings.EqualFold(getEnv("CORS_ALLOW_CREDENTIALS", "false"), "true"),
+		DatabaseURL:          getEnv("DATABASE_URL", ""),
+		StripeSecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
+		StripeWebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", ""),
+		StripeCurrency:       getEnv("STRIPE_CURRENCY", "pen"),
 		// Legacy/fallback config from env for backward compatibility.
 		KafkaBrokers:                           splitCSV(getEnv("KAFKA_BROKERS", "localhost:9092")),
 		KafkaClientID:                          getEnv("KAFKA_CLIENT_ID", serviceName),
@@ -63,7 +67,6 @@ func Load() Config {
 
 func applyConfigServiceOverrides(ctx context.Context, cfg *Config) {
 	if strings.TrimSpace(cfg.ConfigServiceURL) == "" {
-		log.Println("config service disabled: CONFIG_SERVICE_URL not provided")
 		return
 	}
 	client := NewConfigServiceClient(cfg.ConfigServiceURL)
