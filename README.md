@@ -1,66 +1,68 @@
-﻿# Microservice-Payments-Service
+# Microservice-Payments-Service
 
-Payments Service para Smart Energy Management System (SEMS). El servicio procesa pagos, administra metodos de pago, registra invoices, recibe webhooks de Stripe y publica/consume eventos Kafka.
+Payments Service para Smart Energy Management System (SEMS). Procesa pagos, metodos de pago, invoices, webhooks de Stripe y eventos Kafka.
 
 ## Stack
 
 - Go + Gin
 - DDD + Clean Architecture
-- PostgreSQL Neon con GORM
+- PostgreSQL (Neon) con GORM
 - Stripe SDK oficial para Go
 - Apache Kafka con segmentio/kafka-go
 - Docker + Docker Compose
-- Variables de entorno con `.env`
 
-## Estructura
+## Configuracion centralizada
 
-```text
-payments/
-├── application/
-│   ├── commandservices/
-│   ├── eventhandlers/
-│   ├── outboundservices/
-│   └── queryservices/
-├── domain/
-│   ├── model/
-│   ├── repositories/
-│   └── services/
-├── infrastructure/
-│   ├── configuration/
-│   ├── messaging/kafka/
-│   ├── payments/stripe/
-│   └── persistence/gorm/
-├── interfaces/
-│   ├── acl/
-│   └── rest/
-└── shared/
-```
+Este microservicio ahora soporta **Config Service** via `CONFIG_SERVICE_URL`.
 
-## Variables de entorno
+Se consulta:
 
-Copia `.env.example` a `.env` y configura los valores reales. El archivo `.env` esta ignorado por Git, por eso ahi van tus credenciales locales.
+- `GET /api/v1/config/{service-name}` (ejemplo: `payments-service`)
+- `GET /api/v1/config/kafka`
+- (opcional) `GET /api/v1/config/services`
 
-```bash
-SERVER_PORT=8085
-API_BASE_PATH=/api/v1
-APP_ENV=development
-DB_AUTO_MIGRATE=false
-DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
-STRIPE_SECRET_KEY=sk_test_xxx
-STRIPE_WEBHOOK_SECRET=whsec_xxx
-STRIPE_CURRENCY=pen
-KAFKA_BROKERS=localhost:9092
-KAFKA_CLIENT_ID=payments-service
-KAFKA_PAYMENT_PROCESSED_TOPIC=payment.processed
-KAFKA_PAYMENT_FAILED_TOPIC=payment.failed
-KAFKA_INVOICE_GENERATED_TOPIC=invoice.generated
-KAFKA_PAYMENT_METHOD_ADDED_TOPIC=payment.method.added
-KAFKA_SUBSCRIPTION_CREATED_TOPIC=subscription.created
-KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC=subscription.renewal.requested
-KAFKA_SUBSCRIPTION_CANCELLED_TOPIC=subscription.cancelled
-```
+Orden de resolucion:
 
-## Ejecutar local con Go
+1. Carga `.env` (secretos y runtime local).
+2. Si existe `CONFIG_SERVICE_URL`, obtiene configuracion centralizada y sobrescribe:
+   - `SERVER_PORT`
+   - `API_BASE_PATH`
+   - `STRIPE_CURRENCY`
+   - Kafka brokers, client id y topics
+3. Si Config Service no responde, usa fallback local (`.env`).
+
+## Variables de entorno del microservicio
+
+Copia `.env.example` a `.env`.
+
+### Requeridas (sensibles o de despliegue)
+
+- `CONFIG_SERVICE_URL`
+- `SERVER_PORT`
+- `DATABASE_URL`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `APP_ENV`
+- `GIN_MODE`
+- `DB_AUTO_MIGRATE`
+
+### Fallback local (compatibilidad)
+
+Solo para desarrollo cuando Config Service no esta disponible:
+
+- `API_BASE_PATH`
+- `STRIPE_CURRENCY`
+- `KAFKA_BROKERS`
+- `KAFKA_CLIENT_ID`
+- `KAFKA_PAYMENT_PROCESSED_TOPIC`
+- `KAFKA_PAYMENT_FAILED_TOPIC`
+- `KAFKA_INVOICE_GENERATED_TOPIC`
+- `KAFKA_PAYMENT_METHOD_ADDED_TOPIC`
+- `KAFKA_SUBSCRIPTION_CREATED_TOPIC`
+- `KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC`
+- `KAFKA_SUBSCRIPTION_CANCELLED_TOPIC`
+
+## Ejecucion local
 
 ```bash
 go mod tidy
@@ -73,234 +75,91 @@ Compilar:
 go build main.go
 ```
 
-## Ejecutar con Docker
-
-Construir imagen:
+## Docker
 
 ```bash
 docker build -t sems-payments-service .
-```
-
-Ejecutar solo el servicio usando tu `.env` local:
-
-```bash
 docker run --rm --env-file .env -p 8085:8085 sems-payments-service
-```
-
-Si Kafka esta corriendo en tu maquina host y ejecutas el servicio dentro de Docker, usa en `.env`:
-
-```env
-KAFKA_BROKERS=host.docker.internal:9092
-```
-
-## Ejecutar con Docker Compose
-
-El `docker-compose.yml` levanta:
-
-- `payments-service`
-- `kafka` local para desarrollo
-
-Como la base de datos esta en Neon, no se levanta PostgreSQL local. El servicio usa `DATABASE_URL` desde `.env`.
-
-```bash
-docker compose up --build
-```
-
-Detener:
-
-```bash
-docker compose down
-```
-
-Eliminar tambien el volumen local de Kafka:
-
-```bash
-docker compose down -v
-```
-
-En Docker Compose, el servicio usa automaticamente:
-
-```env
-KAFKA_BROKERS=kafka:9092
-```
-
-Esto es correcto porque dentro de la red Docker el broker se llama `kafka`.
-
-
-## Keep-alive para Render
-
-Render puede dormir servicios gratuitos cuando no reciben trafico externo. Para reducir eso, este repo incluye scripts que hacen requests periodicos al endpoint `/health`.
-
-Importante: el keep-alive debe ejecutarse fuera de Render. Si el ping corre dentro del mismo servicio, no siempre cuenta como trafico externo y no es confiable para despertarlo.
-
-### Opcion recomendada: GitHub Actions
-
-El workflow esta en:
-
-```text
-.github/workflows/render-keepalive.yml
-```
-
-Corre cada 10 minutos y tambien se puede ejecutar manualmente desde GitHub Actions.
-
-Configura esta variable en GitHub:
-
-```text
-RENDER_SERVICE_URL=https://tu-servicio.onrender.com/health
-```
-
-Ruta en GitHub:
-
-```text
-Repository > Settings > Secrets and variables > Actions > Variables > New repository variable
-```
-
-### Opcion local Windows PowerShell
-
-```powershell
-.\scripts\keepalive.ps1 -Url https://tu-servicio.onrender.com/health
-```
-
-Con intervalo personalizado:
-
-```powershell
-.\scripts\keepalive.ps1 -Url https://tu-servicio.onrender.com/health -IntervalSeconds 600
-```
-
-### Opcion Linux/macOS
-
-```bash
-KEEPALIVE_URL=https://tu-servicio.onrender.com/health ./scripts/keepalive.sh
-```
-
-Con intervalo personalizado:
-
-```bash
-KEEPALIVE_URL=https://tu-servicio.onrender.com/health KEEPALIVE_INTERVAL_SECONDS=600 ./scripts/keepalive.sh
 ```
 
 ## Endpoints
 
-Base path por defecto: `/api/v1`.
+Health:
 
-### Payment Methods
+- `GET /health`
 
-Registrar metodo de pago:
+Base path por defecto (fallback): `/api/v1`.
 
-```http
-POST /api/v1/payment-methods
-Content-Type: application/json
+Payment Methods:
 
-{
-  "user_id": "9d78e8e6-7f6d-4aa6-a4b0-3d6c44cb84f1",
-  "type": "card",
-  "stripe_payment_method_id": "pm_123",
-  "is_default": true
-}
-```
+- `POST /api/v1/payment-methods`
+- `GET /api/v1/payment-methods/user/{userId}`
+- `PUT /api/v1/payment-methods/{paymentMethodId}/default`
+- `DELETE /api/v1/payment-methods/{paymentMethodId}`
 
-Listar por usuario:
+Payments:
 
-```http
-GET /api/v1/payment-methods/user/{userId}
-```
+- `POST /api/v1/payments/process`
+- `GET /api/v1/payments/{paymentId}`
+- `GET /api/v1/payments/user/{userId}`
+- `GET /api/v1/payments/subscription/{subscriptionId}`
 
-Marcar como default:
+Invoices:
 
-```http
-PUT /api/v1/payment-methods/{paymentMethodId}/default
-```
+- `GET /api/v1/invoices/{invoiceId}`
+- `GET /api/v1/invoices/payment/{paymentId}`
 
-Eliminar:
+Webhook Stripe:
 
-```http
-DELETE /api/v1/payment-methods/{paymentMethodId}
-```
+- `POST /api/v1/webhooks/stripe`
 
-### Payments
+## Configuracion Kafka
 
-Procesar pago:
-
-```http
-POST /api/v1/payments/process
-Content-Type: application/json
-
-{
-  "subscription_id": "86a73829-a1dd-4228-9791-ea2b95ab308a",
-  "user_id": "9d78e8e6-7f6d-4aa6-a4b0-3d6c44cb84f1",
-  "payment_method_id": "8cb43113-13cc-4478-8582-4113516cf432",
-  "amount": 49.90,
-  "currency": "pen",
-  "payment_method": "card"
-}
-```
-
-Consultar:
-
-```http
-GET /api/v1/payments/{paymentId}
-GET /api/v1/payments/user/{userId}
-GET /api/v1/payments/subscription/{subscriptionId}
-```
-
-### Invoices
-
-```http
-GET /api/v1/invoices/{invoiceId}
-GET /api/v1/invoices/payment/{paymentId}
-```
-
-### Stripe Webhook
-
-Configura en Stripe el endpoint:
-
-```http
-POST /api/v1/webhooks/stripe
-```
-
-El servicio valida `Stripe-Signature`, guarda el evento en `payment_webhook_events` y evita procesarlo dos veces usando `provider + provider_event_id`.
-
-## Seguridad y API Gateway
-
-- Este microservicio no implementa middleware JWT interno actualmente.
-- Recomendacion para SEMS: validar JWT y roles en el API Gateway.
-- Publicos recomendados:
-  - `GET /health`
-  - `POST /api/v1/webhooks/stripe` (con validacion de `Stripe-Signature`)
-- Protegidos recomendados con JWT:
-  - `POST /api/v1/payment-methods`
-  - `GET /api/v1/payment-methods/user/{userId}`
-  - `PUT /api/v1/payment-methods/{paymentMethodId}/default`
-  - `DELETE /api/v1/payment-methods/{paymentMethodId}`
-  - `POST /api/v1/payments/process`
-  - `GET /api/v1/payments/{paymentId}`
-  - `GET /api/v1/payments/user/{userId}`
-  - `GET /api/v1/payments/subscription/{subscriptionId}`
-  - `GET /api/v1/invoices/{invoiceId}`
-  - `GET /api/v1/invoices/payment/{paymentId}`
-
-## Eventos Kafka
-
-Publica:
+El servicio publica:
 
 - `payment.processed`
 - `payment.failed`
 - `invoice.generated`
 - `payment.method.added`
 
-Consume:
+El servicio consume:
 
 - `subscription.created`
 - `subscription.renewal.requested`
 - `subscription.cancelled`
 
-`subscription.renewal.requested` dispara el procesamiento de pago si el evento incluye `subscription_id`, `user_id`, `payment_method_id`, `amount` y `currency`.
+Consumer group: `{KAFKA_CLIENT_ID}-group`.
+
+## API Gateway
+
+- Publicos recomendados:
+  - `GET /health`
+  - `POST /api/v1/webhooks/stripe`
+- Protegidos con JWT:
+  - resto de endpoints `/api/v1/payment-methods`, `/api/v1/payments`, `/api/v1/invoices`
+
+## Azure Container Apps
+
+Recomendado para despliegue:
+
+1. Variables en Container App:
+   - `CONFIG_SERVICE_URL`
+   - `SERVER_PORT`
+   - `APP_ENV=production`
+   - `GIN_MODE=release`
+   - `DB_AUTO_MIGRATE=false`
+2. Secretos en ACA Secrets + referencias en env:
+   - `DATABASE_URL`
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+3. Networking:
+   - Permitir salida a Config Service, Kafka y Stripe.
+4. Health probe:
+   - `GET /health`.
 
 ## Notas de arquitectura
 
-- Controllers solo hacen binding HTTP y llaman servicios de aplicacion.
+- Controllers solo hacen binding HTTP y delegan a application.
 - Application orquesta casos de uso y eventos.
-- Domain contiene entidades, value objects, comandos, queries y contratos.
-- Infrastructure contiene Stripe, Kafka y GORM.
-- No hay foreign keys hacia otros microservicios; `subscription_id` y `user_id` son referencias externas.
-
+- Domain mantiene entidades/value objects/contratos.
+- Infrastructure integra Stripe, Kafka y GORM.
