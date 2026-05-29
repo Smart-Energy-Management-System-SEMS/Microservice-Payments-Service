@@ -80,6 +80,10 @@ func (a *Adapter) CreatePaymentIntent(ctx context.Context, request outboundservi
 		Currency:      stripesdk.String(request.Currency),
 		PaymentMethod: stripesdk.String(request.StripePaymentMethodID),
 		Confirm:       stripesdk.Bool(true),
+		AutomaticPaymentMethods: &stripesdk.PaymentIntentAutomaticPaymentMethodsParams{
+			Enabled:        stripesdk.Bool(true),
+			AllowRedirects: stripesdk.String("never"),
+		},
 	}
 	params.AddMetadata("payment_id", request.PaymentID)
 	params.AddMetadata("subscription_id", request.SubscriptionID)
