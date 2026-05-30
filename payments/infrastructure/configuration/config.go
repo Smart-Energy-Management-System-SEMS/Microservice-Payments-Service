@@ -40,7 +40,7 @@ func Load() Config {
 	}
 	cfg := Config{
 		AppEnv:               getEnv("APP_ENV", "development"),
-		ServerPort:           getEnv("SERVER_PORT", "8085"),
+		ServerPort:           firstNonEmpty(getEnv("PORT", ""), getEnv("SERVER_PORT", "8085")),
 		APIBasePath:          getEnv("API_BASE_PATH", "/api/v1"),
 		AutoMigrate:          strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
 		ConfigServiceURL:     getEnv("CONFIG_SERVICE_URL", ""),

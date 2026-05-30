@@ -85,6 +85,9 @@ func main() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "payments-service"})
 	})
+	router.GET("/api/v1/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "payments-service"})
+	})
 
 	controllers.RegisterRoutes(router, cfg.APIBasePath, controllers.Controllers{
 		PaymentMethods: controllers.NewPaymentMethodController(paymentMethodCommands, paymentMethodQueries),

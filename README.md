@@ -2,68 +2,108 @@
 
 Microservicio de pagos de SEMS. Expone endpoints REST de payment methods, payments, invoices y webhook Stripe.
 
-## Ejecucion local (Gateway + Config-Service)
+## Health checks
 
-- Config-Service local: `http://localhost:8090`
-- API Gateway local: `http://localhost:8081`
-- Puerto local del microservicio: `8085`
-- Base URL local final: `http://localhost:8085`
-- Route prefix: `/api/v1`
+- `GET /health`
+- `GET /api/v1/health`
 
-## Health check
+Ambos endpoints devuelven `200 OK`.
 
-Endpoint publico sin autenticacion:
+## Variables de entorno requeridas
 
-- `GET /health` -> `200 OK`
+Base (Azure/local):
 
-## Configuracion por entorno
+- `PORT` (ejemplo: `8080`)
+- `CONFIG_SERVICE_URL`
+- `KAFKA_BROKERS`
+- `KAFKA_SECURITY_PROTOCOL`
+- `KAFKA_SASL_MECHANISM`
+- `KAFKA_USERNAME`
+- `KAFKA_PASSWORD`
+- `DATABASE_URL`
+- `GIN_MODE` (recomendado en Azure: `release`)
 
-Copiar `.env.example` a `.env`.
-
-### Variables no sensibles
+Adicionales del servicio:
 
 - `APP_ENV`
-- `GIN_MODE`
-- `SERVER_PORT`
 - `DB_AUTO_MIGRATE`
-- `CONFIG_SERVICE_URL`
 - `CORS_ALLOWED_ORIGINS`
 - `CORS_ALLOW_CREDENTIALS`
-- `API_BASE_PATH` (fallback)
-- `STRIPE_CURRENCY` (fallback)
-- `KAFKA_*` (fallback)
-
-### Variables sensibles
-
-- `DATABASE_URL`
+- `API_BASE_PATH`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_CURRENCY`
+- `KAFKA_CLIENT_ID`
+- `KAFKA_PAYMENT_PROCESSED_TOPIC`
+- `KAFKA_PAYMENT_FAILED_TOPIC`
+- `KAFKA_INVOICE_GENERATED_TOPIC`
+- `KAFKA_PAYMENT_METHOD_ADDED_TOPIC`
+- `KAFKA_SUBSCRIPTION_CREATED_TOPIC`
+- `KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC`
+- `KAFKA_SUBSCRIPTION_CANCELLED_TOPIC`
 
-## Config Service
+Nota de compatibilidad: el servicio prioriza `PORT`; si no existe, usa `SERVER_PORT`.
 
-Si `CONFIG_SERVICE_URL` esta definido, el servicio consulta:
+## Ejemplo local (.env)
 
-- `GET /api/v1/config/{service-name}`
-- `GET /api/v1/config/kafka`
-- `GET /api/v1/config/services` (opcional)
+```env
+PORT=8080
+CONFIG_SERVICE_URL=http://localhost:8090
+KAFKA_BROKERS=localhost:9092
+KAFKA_SECURITY_PROTOCOL=
+KAFKA_SASL_MECHANISM=
+KAFKA_USERNAME=
+KAFKA_PASSWORD=
+DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/payments?sslmode=disable
+GIN_MODE=debug
+```
 
-`service-name` usado: `payments-service`.
+## Docker
 
-Si Config-Service no responde, usa fallback del `.env`.
+Build de imagen:
 
-## CORS local
+```bash
+docker build -t sems-payments-service:local .
+```
 
-Por defecto permite:
+Run local con archivo `.env`:
 
-- `http://localhost:3000`
-- `http://localhost:5173`
+```bash
+docker run --rm -p 8080:8080 --env-file .env --name sems-payments-service sems-payments-service:local
+```
 
-Controlado por:
+Prueba rápida:
 
-- `CORS_ALLOWED_ORIGINS`
-- `CORS_ALLOW_CREDENTIALS`
+```bash
+curl -i http://localhost:8080/api/v1/health
+```
 
-## Endpoints reales
+## Ejemplo Azure Container Apps
+
+El contenedor no debe usar `localhost` para servicios externos. Define variables en ACA con hosts reales (Kafka/Config Service/DB).
+
+Variables mínimas recomendadas en ACA:
+
+```text
+PORT=8080
+GIN_MODE=release
+CONFIG_SERVICE_URL=https://<config-service-url>
+KAFKA_BROKERS=<broker1:9092,broker2:9092>
+KAFKA_SECURITY_PROTOCOL=SASL_SSL
+KAFKA_SASL_MECHANISM=PLAIN
+KAFKA_USERNAME=<usuario>
+KAFKA_PASSWORD=<password>
+DATABASE_URL=<conexion-postgres>
+```
+
+Checklist de despliegue ACA:
+
+- Exponer puerto objetivo `8080`.
+- Configurar secretos para `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `KAFKA_PASSWORD`.
+- Configurar egress a Kafka, Config Service y Stripe.
+- Configurar health probe sobre `GET /api/v1/health` (o `GET /health`).
+
+## Endpoints funcionales
 
 Con prefijo `/api/v1`:
 
@@ -78,45 +118,3 @@ Con prefijo `/api/v1`:
 - `GET /invoices/:invoiceId`
 - `GET /invoices/payment/:paymentId`
 - `POST /webhooks/stripe`
-
-## Auth/JWT con Gateway
-
-Este microservicio no valida JWT internamente.
-
-- Si `API_GATEWAY_AUTH_REQUIRED=false`: se puede probar sin JWT.
-- Endpoints publicos recomendados en Gateway:
-  - `GET /health`
-  - `POST /api/v1/webhooks/stripe`
-- Endpoints protegidos recomendados:
-  - resto de `/api/v1/payment-methods`, `/api/v1/payments`, `/api/v1/invoices`
-
-## Dependencias locales
-
-Kafka local (ya levantado en `localhost:9092`) y Postgres accesible desde `DATABASE_URL`.
-
-## Pruebas rapidas
-
-Health del MS:
-
-```bash
-curl -i http://localhost:8085/health
-```
-
-Endpoint principal del MS (ejemplo):
-
-```bash
-curl -i http://localhost:8085/api/v1/payments/user/test-user
-```
-
-Endpoint via Gateway (ejemplo proxied, ajusta path segun tu gateway):
-
-```bash
-curl -i http://localhost:8081/payments/api/v1/payments/user/test-user
-```
-
-## Azure Container Apps
-
-- Definir env vars no sensibles en la app.
-- Definir `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` como secretos de ACA.
-- Health probe: `GET /health`.
-- Permitir egress a Config-Service, Kafka y Stripe.
