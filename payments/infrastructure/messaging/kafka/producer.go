@@ -1,3 +1,7 @@
+// Package kafkaadapter is the messaging adapter: it implements the EventPublisher
+// port by sending domain events to Apache Kafka. Publishing events lets other
+// microservices react to what happens here (a payment processed, an invoice
+// generated, ...) without being directly coupled to this service.
 package kafkaadapter
 
 import (
@@ -11,6 +15,8 @@ import (
 	"Microservice-Payments-Service/payments/domain/model/entities"
 )
 
+// Topics maps each kind of event to the Kafka topic name it is published on.
+// Keeping the names in config (not hard-coded) lets each environment use its own.
 type Topics struct {
 	PaymentProcessed             string
 	PaymentFailed                string
@@ -21,15 +27,24 @@ type Topics struct {
 	SubscriptionCancelled        string
 }
 
+// Producer sends messages to Kafka. It caches one writer per topic in the
+// "writers" map and reuses them, since creating a writer is comparatively
+// expensive.
 type Producer struct {
 	brokers []string
 	topics  Topics
 	writers map[string]*segmentio.Writer
 }
 
+// NewProducer builds a Producer with an initialised (non-nil) writers map.
 func NewProducer(brokers []string, topics Topics) *Producer {
 	return &Producer{brokers: brokers, topics: topics, writers: map[string]*segmentio.Writer{}}
 }
+
+// The Publish* methods each build the JSON payload for one event type and hand
+// it to the shared publish() helper. They use the payment/invoice id as the
+// Kafka message key so all events about the same entity go to the same partition
+// and therefore preserve their order.
 
 func (p *Producer) PublishPaymentProcessed(ctx context.Context, payment entities.Payment, invoice entities.Invoice) error {
 	return p.publish(ctx, p.topics.PaymentProcessed, payment.PaymentID.String(), map[string]interface{}{
@@ -84,6 +99,8 @@ func (p *Producer) PublishPaymentMethodAdded(ctx context.Context, method entitie
 	})
 }
 
+// Close shuts down all cached writers, e.g. during graceful shutdown. It keeps
+// the last error but still tries to close every writer.
 func (p *Producer) Close() error {
 	var lastErr error
 	for _, writer := range p.writers {
@@ -94,6 +111,10 @@ func (p *Producer) Close() error {
 	return lastErr
 }
 
+// publish is the shared low-level send. If messaging is not configured (no topic
+// or no brokers) it logs and returns nil instead of failing — this lets the
+// service run locally without a Kafka cluster. Otherwise it serialises the
+// payload to JSON and writes the message.
 func (p *Producer) publish(ctx context.Context, topic string, key string, payload interface{}) error {
 	if topic == "" || len(p.brokers) == 0 {
 		log.Printf("kafka publish skipped for topic=%s", topic)
@@ -107,6 +128,9 @@ func (p *Producer) publish(ctx context.Context, topic string, key string, payloa
 	return writer.WriteMessages(ctx, segmentio.Message{Key: []byte(key), Value: value})
 }
 
+// writer returns the cached writer for a topic, creating it on first use
+// ("lazy initialisation"). LeastBytes balances messages toward the least-loaded
+// partition.
 func (p *Producer) writer(topic string) *segmentio.Writer {
 	if writer, ok := p.writers[topic]; ok {
 		return writer

@@ -1,3 +1,8 @@
+// Package configuration loads every setting the service needs. It follows the
+// Twelve-Factor "config in the environment" idea: hard-coded defaults are
+// overridden by environment variables (and a local .env file), which in turn can
+// be overridden by a central config service. This keeps secrets and per-env
+// values out of the source code.
 package configuration
 
 import (
@@ -11,6 +16,7 @@ import (
 
 const serviceName = "payments-service"
 
+// Config is the full, flat set of settings used across the service.
 type Config struct {
 	AppEnv                                 string
 	ServerPort                             string
@@ -34,6 +40,10 @@ type Config struct {
 	KafkaSubscriptionCancelledTopic        string
 }
 
+// Load builds the configuration. It first tries to read a local .env file (handy
+// for development; harmless in production where it just won't exist), then reads
+// each value from the environment with a sensible default, and finally lets a
+// central config service override selected values.
 func Load() Config {
 	if err := godotenv.Load(); err != nil {
 		log.Printf(".env not loaded, using environment variables: %v", err)
@@ -65,6 +75,12 @@ func Load() Config {
 	return cfg
 }
 
+// applyConfigServiceOverrides asks a central config service for values and
+// overlays them on top of the local config. If no config service URL is set, it
+// simply returns (local config is enough). The rule throughout is "only override
+// when the remote actually provided a non-empty value", so a partial remote
+// response never wipes a good local default. A failed fetch is logged but not
+// fatal — the service keeps running with what it already has (resilience).
 func applyConfigServiceOverrides(ctx context.Context, cfg *Config) {
 	if strings.TrimSpace(cfg.ConfigServiceURL) == "" {
 		return
@@ -106,6 +122,10 @@ func applyConfigServiceOverrides(ctx context.Context, cfg *Config) {
 	cfg.KafkaSubscriptionCancelledTopic = firstNonEmpty(kafkaCfg.Topics.SubscriptionCancelled, cfg.KafkaSubscriptionCancelledTopic)
 }
 
+// The helpers below keep the Load function clean and free of repetition.
+
+// getEnv reads an environment variable, returning the fallback when it is unset
+// or blank.
 func getEnv(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -114,6 +134,8 @@ func getEnv(key, fallback string) string {
 	return value
 }
 
+// splitCSV turns "a, b ,c" into a clean slice ["a","b","c"], dropping empties.
+// Used for list settings like CORS origins and Kafka brokers.
 func splitCSV(value string) []string {
 	parts := strings.Split(value, ",")
 	items := make([]string, 0, len(parts))
@@ -126,6 +148,8 @@ func splitCSV(value string) []string {
 	return items
 }
 
+// firstNonEmpty returns the value if it has content, otherwise the fallback.
+// It is the building block for the "only override when provided" merge rule.
 func firstNonEmpty(value string, fallback string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
