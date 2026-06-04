@@ -52,6 +52,17 @@ func main() {
 		SubscriptionRenewalRequested: cfg.KafkaSubscriptionRenewalRequestedTopic,
 		SubscriptionCancelled:        cfg.KafkaSubscriptionCancelledTopic,
 	}
+	log.Printf(
+		"kafka configured brokers=%v produced_topics=[%s,%s,%s,%s] consumed_topics=[%s,%s,%s]",
+		cfg.KafkaBrokers,
+		topics.PaymentProcessed,
+		topics.PaymentFailed,
+		topics.InvoiceGenerated,
+		topics.PaymentMethodAdded,
+		topics.SubscriptionCreated,
+		topics.SubscriptionRenewalRequested,
+		topics.SubscriptionCancelled,
+	)
 	publisher := kafkaadapter.NewProducer(cfg.KafkaBrokers, topics)
 	paymentProvider := stripeadapter.NewAdapter(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
 

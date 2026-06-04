@@ -125,7 +125,12 @@ func (p *Producer) publish(ctx context.Context, topic string, key string, payloa
 		return err
 	}
 	writer := p.writer(topic)
-	return writer.WriteMessages(ctx, segmentio.Message{Key: []byte(key), Value: value})
+	if err := writer.WriteMessages(ctx, segmentio.Message{Key: []byte(key), Value: value}); err != nil {
+		log.Printf("kafka publish failed topic=%s key=%s brokers=%v err=%v", topic, key, p.brokers, err)
+		return err
+	}
+	log.Printf("kafka publish succeeded topic=%s key=%s", topic, key)
+	return nil
 }
 
 // writer returns the cached writer for a topic, creating it on first use
