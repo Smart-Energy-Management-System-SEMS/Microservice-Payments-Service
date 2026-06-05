@@ -10,6 +10,7 @@ services:
       SERVER_PORT: ${SERVER_PORT:-8086}
       API_BASE_PATH: ${API_BASE_PATH:-/api/v1}
       KAFKA_BROKERS: kafka:29092
+      KAFKA_ENSURE_TOPICS: "false"
     ports:
       - "${SERVER_PORT:-8086}:${SERVER_PORT:-8086}"
     depends_on:

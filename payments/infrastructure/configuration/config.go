@@ -22,6 +22,7 @@ type Config struct {
 	ServerPort                             string
 	APIBasePath                            string
 	AutoMigrate                            bool
+	KafkaEnsureTopics                      bool
 	ConfigServiceURL                       string
 	CORSAllowedOrigins                     []string
 	CORSAllowCredentials                   bool
@@ -53,6 +54,7 @@ func Load() Config {
 		ServerPort:           firstNonEmpty(getEnv("PORT", ""), getEnv("SERVER_PORT", "8085")),
 		APIBasePath:          getEnv("API_BASE_PATH", "/api/v1"),
 		AutoMigrate:          strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
+		KafkaEnsureTopics:    strings.EqualFold(getEnv("KAFKA_ENSURE_TOPICS", "false"), "true"),
 		ConfigServiceURL:     getEnv("CONFIG_SERVICE_URL", ""),
 		CORSAllowedOrigins:   splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173")),
 		CORSAllowCredentials: strings.EqualFold(getEnv("CORS_ALLOW_CREDENTIALS", "false"), "true"),

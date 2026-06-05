@@ -63,8 +63,12 @@ func main() {
 		topics.SubscriptionRenewalRequested,
 		topics.SubscriptionCancelled,
 	)
-	if err := kafkaadapter.EnsureTopics(cfg.KafkaBrokers, topics); err != nil {
-		log.Fatalf("kafka topic ensure failed: %v", err)
+	if cfg.KafkaEnsureTopics {
+		if err := kafkaadapter.EnsureTopics(cfg.KafkaBrokers, topics); err != nil {
+			log.Fatalf("kafka topic ensure failed: %v", err)
+		}
+	} else {
+		log.Printf("kafka topic ensure skipped: KAFKA_ENSURE_TOPICS=%t", cfg.KafkaEnsureTopics)
 	}
 	publisher := kafkaadapter.NewProducer(cfg.KafkaBrokers, topics)
 	paymentProvider := stripeadapter.NewAdapter(cfg.StripeSecretKey, cfg.StripeWebhookSecret)

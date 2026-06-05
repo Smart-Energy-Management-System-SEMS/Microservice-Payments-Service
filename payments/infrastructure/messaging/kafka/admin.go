@@ -70,6 +70,10 @@ func EnsureTopics(brokers []string, topics Topics) error {
 			log.Printf("kafka topics already existed: %v", topicNames)
 			return nil
 		}
+		if isTopicEnsureNonFatalError(err) {
+			log.Printf("kafka topic ensure skipped due to broker limitation: %v", err)
+			return nil
+		}
 		return fmt.Errorf("create kafka topics %v: %w", topicNames, err)
 	}
 
@@ -97,4 +101,9 @@ func uniqueTopics(values ...string) []string {
 func isTopicAlreadyExistsError(err error) bool {
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "already exists") || strings.Contains(message, "topic with this name already exists")
+}
+
+func isTopicEnsureNonFatalError(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unsupported version") || strings.Contains(message, "eof")
 }
