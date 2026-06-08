@@ -62,16 +62,17 @@ func Load() Config {
 		StripeSecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
 		StripeWebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", ""),
 		StripeCurrency:       getEnv("STRIPE_CURRENCY", "pen"),
-		// Legacy/fallback config from env for backward compatibility.
+		// Read the official KAFKA_TOPIC_* names first, but keep the legacy
+		// KAFKA_*_TOPIC variants as fallbacks so existing deployments keep working.
 		KafkaBrokers:                           splitCSV(getEnv("KAFKA_BROKERS", "localhost:9092")),
 		KafkaClientID:                          getEnv("KAFKA_CLIENT_ID", serviceName),
-		KafkaPaymentProcessedTopic:             getEnv("KAFKA_PAYMENT_PROCESSED_TOPIC", "payment.processed"),
-		KafkaPaymentFailedTopic:                getEnv("KAFKA_PAYMENT_FAILED_TOPIC", "payment.failed"),
-		KafkaInvoiceGeneratedTopic:             getEnv("KAFKA_INVOICE_GENERATED_TOPIC", "invoice.generated"),
-		KafkaPaymentMethodAddedTopic:           getEnv("KAFKA_PAYMENT_METHOD_ADDED_TOPIC", "payment.method.added"),
-		KafkaSubscriptionCreatedTopic:          getEnv("KAFKA_SUBSCRIPTION_CREATED_TOPIC", "subscription.created"),
-		KafkaSubscriptionRenewalRequestedTopic: getEnv("KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC", "subscription.renewal.requested"),
-		KafkaSubscriptionCancelledTopic:        getEnv("KAFKA_SUBSCRIPTION_CANCELLED_TOPIC", "subscription.cancelled"),
+		KafkaPaymentProcessedTopic:             getEnvWithFallback("KAFKA_TOPIC_PAYMENT_PROCESSED", "KAFKA_PAYMENT_PROCESSED_TOPIC", "payment.processed"),
+		KafkaPaymentFailedTopic:                getEnvWithFallback("KAFKA_TOPIC_PAYMENT_FAILED", "KAFKA_PAYMENT_FAILED_TOPIC", "payment.failed"),
+		KafkaInvoiceGeneratedTopic:             getEnvWithFallback("KAFKA_TOPIC_INVOICE_GENERATED", "KAFKA_INVOICE_GENERATED_TOPIC", "invoice.generated"),
+		KafkaPaymentMethodAddedTopic:           getEnvWithFallback("KAFKA_TOPIC_PAYMENT_METHOD_ADDED", "KAFKA_PAYMENT_METHOD_ADDED_TOPIC", "payment.method.added"),
+		KafkaSubscriptionCreatedTopic:          getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_CREATED", "KAFKA_SUBSCRIPTION_CREATED_TOPIC", "subscription.created"),
+		KafkaSubscriptionRenewalRequestedTopic: getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED", "KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC", "subscription.renewal.requested"),
+		KafkaSubscriptionCancelledTopic:        getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_CANCELLED", "KAFKA_SUBSCRIPTION_CANCELLED_TOPIC", "subscription.cancelled"),
 	}
 	applyConfigServiceOverrides(context.Background(), &cfg)
 	return cfg
@@ -134,6 +135,16 @@ func getEnv(key, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+// getEnvWithFallback prefers the primary env var, then a compatibility alias,
+// and finally the provided default.
+func getEnvWithFallback(primaryKey string, legacyKey string, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(primaryKey))
+	if value != "" {
+		return value
+	}
+	return getEnv(legacyKey, fallback)
 }
 
 // splitCSV turns "a, b ,c" into a clean slice ["a","b","c"], dropping empties.

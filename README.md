@@ -1,4 +1,4 @@
-# Microservice-Payments-Service
+Ôªø# Microservice-Payments-Service
 
 Microservicio de pagos de SEMS. Expone endpoints REST de payment methods, payments, invoices y webhook Stripe.
 
@@ -34,13 +34,13 @@ Adicionales del servicio:
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_CURRENCY`
 - `KAFKA_CLIENT_ID`
-- `KAFKA_PAYMENT_PROCESSED_TOPIC`
-- `KAFKA_PAYMENT_FAILED_TOPIC`
-- `KAFKA_INVOICE_GENERATED_TOPIC`
-- `KAFKA_PAYMENT_METHOD_ADDED_TOPIC`
-- `KAFKA_SUBSCRIPTION_CREATED_TOPIC`
-- `KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC`
-- `KAFKA_SUBSCRIPTION_CANCELLED_TOPIC`
+- `KAFKA_TOPIC_PAYMENT_PROCESSED`
+- `KAFKA_TOPIC_PAYMENT_FAILED`
+- `KAFKA_TOPIC_INVOICE_GENERATED`
+- `KAFKA_TOPIC_PAYMENT_METHOD_ADDED`
+- `KAFKA_TOPIC_SUBSCRIPTION_CREATED`
+- `KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED`
+- `KAFKA_TOPIC_SUBSCRIPTION_CANCELLED`
 
 Nota de compatibilidad: el servicio prioriza `PORT`; si no existe, usa `SERVER_PORT`.
 
@@ -54,6 +54,13 @@ KAFKA_SECURITY_PROTOCOL=
 KAFKA_SASL_MECHANISM=
 KAFKA_USERNAME=
 KAFKA_PASSWORD=
+KAFKA_TOPIC_PAYMENT_PROCESSED=payment.processed
+KAFKA_TOPIC_PAYMENT_FAILED=payment.failed
+KAFKA_TOPIC_INVOICE_GENERATED=invoice.generated
+KAFKA_TOPIC_PAYMENT_METHOD_ADDED=payment.method.added
+KAFKA_TOPIC_SUBSCRIPTION_CREATED=subscription.created
+KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED=subscription.renewal.requested
+KAFKA_TOPIC_SUBSCRIPTION_CANCELLED=subscription.cancelled
 DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/payments?sslmode=disable
 GIN_MODE=debug
 ```
@@ -72,7 +79,7 @@ Run local con archivo `.env`:
 docker run --rm -p 8080:8080 --env-file .env --name sems-payments-service sems-payments-service:local
 ```
 
-Prueba r·pida:
+Prueba r√°pida:
 
 ```bash
 curl -i http://localhost:8080/api/v1/health
@@ -82,7 +89,7 @@ curl -i http://localhost:8080/api/v1/health
 
 El contenedor no debe usar `localhost` para servicios externos. Define variables en ACA con hosts reales (Kafka/Config Service/DB).
 
-Variables mÌnimas recomendadas en ACA:
+Variables m√≠nimas recomendadas en ACA:
 
 ```text
 PORT=8080
@@ -93,6 +100,13 @@ KAFKA_SECURITY_PROTOCOL=SASL_SSL
 KAFKA_SASL_MECHANISM=PLAIN
 KAFKA_USERNAME=<usuario>
 KAFKA_PASSWORD=<password>
+KAFKA_TOPIC_PAYMENT_PROCESSED=payment.processed
+KAFKA_TOPIC_PAYMENT_FAILED=payment.failed
+KAFKA_TOPIC_INVOICE_GENERATED=invoice.generated
+KAFKA_TOPIC_PAYMENT_METHOD_ADDED=payment.method.added
+KAFKA_TOPIC_SUBSCRIPTION_CREATED=subscription.created
+KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED=subscription.renewal.requested
+KAFKA_TOPIC_SUBSCRIPTION_CANCELLED=subscription.cancelled
 DATABASE_URL=<conexion-postgres>
 ```
 
@@ -118,3 +132,21 @@ Con prefijo `/api/v1`:
 - `GET /invoices/:invoiceId`
 - `GET /invoices/payment/:paymentId`
 - `POST /webhooks/stripe`
+
+## Kafka topics
+
+Payments publica:
+
+- `payment.processed`
+- `payment.failed`
+- `invoice.generated`
+- `payment.method.added`
+
+Payments consume:
+
+- `subscription.created`
+- `subscription.cancelled`
+- `subscription.renewal.requested`
+
+Nota: `subscription.renewal.requested` queda soportado por el consumer y por la configuracion del micro, pero hoy depende de que otro microservicio realmente lo publique. Si nadie lo produce, no rompe el arranque; simplemente no llegaran eventos de ese topic.
+

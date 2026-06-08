@@ -1,0 +1,168 @@
+IAM-------------------------------------------------------------------------------
+Los topics de este micro son estos:
+
+- `iam.user.registered`
+- `iam.user.logged-in`
+- `iam.role.assigned`
+- `iam.role-assignment.requested`
+
+Están definidos en [application.properties](C:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-IAM-Service/src/main/resources/application.properties:39) y registrados como `NewTopic` en [KafkaTopicConfiguration.java](C:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-IAM-Service/src/main/java/com/sems/iam/infrastructure/messaging/kafka/configuration/KafkaTopicConfiguration.java:11).
+
+Uso dentro del micro:
+- Publica en `iam.user.registered`, `iam.user.logged-in` y `iam.role.assigned` desde [KafkaIamEventPublisher.java](C:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-IAM-Service/src/main/java/com/sems/iam/infrastructure/messaging/kafka/outbound/KafkaIamEventPublisher.java:15).
+- Consume `iam.role-assignment.requested` en [KafkaIamEventConsumer.java](C:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-IAM-Service/src/main/java/com/sems/iam/infrastructure/messaging/kafka/inbound/KafkaIamEventConsumer.java:15).
+
+Si quieres, te hago ahora una tabla `topic | producer | consumer | para qué sirve` de este micro.
+
+Device-------------------------------------------------------------------------------
+
+Los topics de este micro son estos, con sus nombres por defecto en [.env.example](c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Device-Management-Service/.env.example:16) y [config.go](c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Device-Management-Service/device-management/infrastructure/configuration/config.go:151):
+
+- `TOPIC_DEVICE_REGISTERED` -> `device.registered`
+- `TOPIC_DEVICE_STATUS_UPDATED` -> `device.status.updated`
+- `TOPIC_DEVICE_LINKED` -> `device.linked`
+- `TOPIC_DEVICE_UNLINKED` -> `device.unlinked`
+- `TOPIC_DEVICE_CONFIGURATION_UPDATED` -> `device.configuration.updated`
+- `TOPIC_DEVICE_EVENT_RECORDED` -> `device.event.recorded`
+
+Según el código, este micro publica así:
+- Crear dispositivo -> `device.registered`
+- Cambiar estado o eliminar lógico -> `device.status.updated`
+- Vincular dispositivo -> `device.linked`
+- Desvincular dispositivo -> `device.unlinked`
+- Crear o actualizar configuración -> `device.configuration.updated`
+- Registrar evento operativo -> `device.event.recorded`
+
+Ojo: en tu `.env` abierto no están definidos esos `TOPIC_*`, así que si no vienen del Config Service, el micro usará esos defaults del código. Si quieres, te doy también el comando exacto para listar esos topics dentro de tu Kafka en Docker.
+
+Energy-------------------------------------------------------------------------------
+
+Estos son todos los topics que este micro tiene definidos:
+
+- `monitoring.reading.ingest`
+- `analytics.anomaly.detected`
+- `monitoring.alert.created`
+- `monitoring.reading.processed`
+- `energy.reading.created`
+
+Según el código, quedan así:
+
+- Consume:
+  - `monitoring.reading.ingest`
+  - `analytics.anomaly.detected`
+
+- Publica:
+  - `monitoring.alert.created`
+  - `monitoring.reading.processed`
+  - `energy.reading.created`
+
+La fuente principal está en [settings.py](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Energy-Monitoring-Service/monitoring/infrastructure/configuration/settings.py:28), el registro de consumers en [monitoring_event_handler.py](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Energy-Monitoring-Service/monitoring/application/eventhandlers/monitoring_event_handler.py:21), y la publicación en [monitoring_event_publisher.py](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Energy-Monitoring-Service/monitoring/application/outboundservices/monitoring_event_publisher.py:17). También están creados en [docker-compose.yml](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Energy-Monitoring-Service/docker-compose.yml:64).
+
+Si quieres, en el siguiente paso te los puedo ordenar en una tabla `topic -> quién lo publica -> quién lo consume -> para qué sirve`.
+
+Analytics-------------------------------------------------------------------------------
+
+Estos son los topics de este micro.
+
+**Consume**
+- `energy.consumption.recorded`
+- `device.registered`
+- `device.updated`
+
+**Publica**
+- `analytics.bill_prediction.generated`
+- `analytics.recommendation.generated`
+- `analytics.anomaly.detected`
+- `analytics.device_identified`
+- `analytics.consumption_ranking.generated`
+
+**Dónde se ve**
+- Los topics consumidos están definidos en [settings.py](</c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Analytics-Service/analytics/infrastructure/configuration/settings.py:47>) y usados por el consumer en [kafka_consumer.py](</c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Analytics-Service/analytics/infrastructure/messaging/kafka/kafka_consumer.py:50>).
+- Los topics publicados están centralizados en [events.py](</c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Analytics-Service/analytics/infrastructure/messaging/kafka/events.py:5>) y se disparan desde [analytics_event_publisher.py](</c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Analytics-Service/analytics/application/outboundservices/analytics_event_publisher.py:31>).
+
+Además, en tu `docker-compose` aparecen creados explícitamente estos topics:
+- `energy.consumption.recorded`
+- `device.registered`
+- `device.updated`
+
+Si quieres, en el siguiente paso te digo también **qué endpoint o qué flujo dispara cada topic publicado**.
+
+Alert-------------------------------------------------------------------------------
+
+Los topics que aparecen en este micro son estos:
+
+- `energy.consumption.recorded`
+- `alert.created`
+- `alert.sent`
+- `payment.completed`
+
+Pero hay una diferencia importante:
+
+**Topics que este micro usa directamente**
+- `energy.consumption.recorded`: lo **consume** el alert service como `KAFKA_CONSUMPTION_TOPIC` en [config.go](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Alert-Service/alert/infrastructure/configuration/config.go:50) y su default está en [config.go](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Alert-Service/alert/infrastructure/configuration/config.go:74).
+- `alert.created`: lo **publica** el alert service como `KAFKA_TOPIC_ALERT_CREATED` en [config.go](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Alert-Service/alert/infrastructure/configuration/config.go:51) y su default está en [config.go](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Alert-Service/alert/infrastructure/configuration/config.go:77).
+
+**Topics que Docker crea, pero este micro no usa en código**
+- `alert.sent`
+- `payment.completed`
+
+Esos salen de `KAFKA_TOPICS` en [.env.example](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Alert-Service/.env.example:13) y [docker-compose.yml](/c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Alert-Service/docker-compose.yml:72), pero no encontré consumer/producer de este micro apuntando a ellos.
+
+En resumen, para **este micro específicamente** los topics reales son:
+- `energy.consumption.recorded` como entrada
+- `alert.created` como salida
+
+Si quieres, te saco ahora un mapa tipo: `micro -> topic -> acción (consume/publica)` para que lo uses en tu documentación.
+
+Payment-------------------------------------------------------------------------------
+
+Estos son **todos los topics** de este micro:
+
+- `payment.processed`
+- `payment.failed`
+- `invoice.generated`
+- `payment.method.added`
+- `subscription.created`
+- `subscription.renewal.requested`
+- `subscription.cancelled`
+
+**Publica**
+- `payment.processed`
+- `payment.failed`
+- `invoice.generated`
+- `payment.method.added`
+
+**Consume**
+- `subscription.created`
+- `subscription.renewal.requested`
+- `subscription.cancelled`
+
+Están definidos por defecto en [config.go](</c:/Users/ASUS/Desktop/UPC/UPC-Ciclo Vll/Fundamentos de Arquitectura de Software/Sems/Microservice-Payments-Service/payments/infrastructure/configuration/config.go:68>) y se asignan al objeto `topics` en [main.go](</c:/Users/ASUS/Desktop/UPC/UPC-Ciclo Vll/Fundamentos de Arquitectura de Software/Sems/Microservice-Payments-Service/main.go:35>). Si quieres, te doy ahora el detalle de **qué micro debería producir/consumir cada uno**.
+
+Subs-------------------------------------------------------------------------------
+
+Estos son todos los topics que este micro tiene definidos para publicar eventos:
+
+- `SubscriptionCreated`
+- `SubscriptionCancelled`
+- `SubscriptionPlanChanged`
+- `SubscriptionExpired`
+- `SubscriptionUpdated`
+
+Dónde salen:
+- Los 3 primeros se usan desde el servicio de suscripciones en [subscription_command_service.go](/abs/path not available)
+- Los 2 últimos se usan desde el webhook de Stripe en [stripe_webhook_handler.go](/abs/path not available)
+- Todos se configuran en [subscriptions/infrastructure/configuration/config.go](c:/Users/ASUS/Desktop/UPC/UPC-Ciclo%20Vll/Fundamentos%20de%20Arquitectura%20de%20Software/Sems/Microservice-Subscriptions-Service/subscriptions/infrastructure/configuration/config.go:90)
+
+Variables de entorno asociadas:
+- `KAFKA_TOPIC_SUBSCRIPTION_CREATED`
+- `KAFKA_TOPIC_SUBSCRIPTION_CANCELLED`
+- `KAFKA_TOPIC_SUBSCRIPTION_PLAN_CHANGED`
+- `KAFKA_TOPIC_SUBSCRIPTION_EXPIRED`
+- `KAFKA_TOPIC_SUBSCRIPTION_UPDATED`
+
+Importante:
+- En este código encontré publicación de eventos, no consumidores Kafka.
+- O sea, este micro actúa como `producer` de esos topics; no vi handlers o consumers que lean topics desde Kafka.
+
+Si quieres, te saco ahora una tabla `topic -> cuándo se publica -> payload que envía -> quién debería consumirlo`.

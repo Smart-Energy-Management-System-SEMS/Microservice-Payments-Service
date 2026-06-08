@@ -63,6 +63,10 @@ func main() {
 		topics.SubscriptionRenewalRequested,
 		topics.SubscriptionCancelled,
 	)
+	log.Printf(
+		"kafka note: topic %q is configured as a supported future/pending subscription flow; payments will only receive events there once another microservice publishes them",
+		topics.SubscriptionRenewalRequested,
+	)
 	if cfg.KafkaEnsureTopics {
 		if err := kafkaadapter.EnsureTopics(cfg.KafkaBrokers, topics); err != nil {
 			log.Fatalf("kafka topic ensure failed: %v", err)

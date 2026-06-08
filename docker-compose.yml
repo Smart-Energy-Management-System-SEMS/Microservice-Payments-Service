@@ -42,6 +42,27 @@ services:
     networks:
       - sems-payments-network
 
+  kafka-topics-init:
+    image: bitnami/kafka:3.7.0
+    container_name: payments-kafka-topics-init
+    depends_on:
+      kafka:
+        condition: service_started
+    entrypoint:
+      - /bin/bash
+      - -c
+      - >
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic subscription.created --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic subscription.cancelled --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic subscription.renewal.requested --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic payment.processed --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic payment.failed --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic invoice.generated --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic payment.method.added --partitions 1 --replication-factor 1
+    restart: "no"
+    networks:
+      - sems-payments-network
+
 networks:
   sems-payments-network:
     driver: bridge
