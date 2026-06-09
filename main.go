@@ -52,6 +52,15 @@ func main() {
 		SubscriptionRenewalRequested: cfg.KafkaSubscriptionRenewalRequestedTopic,
 		SubscriptionCancelled:        cfg.KafkaSubscriptionCancelledTopic,
 	}
+	kafkaConfig := kafkaadapter.ConnectionConfig{
+		Brokers:          cfg.KafkaBrokers,
+		SecurityProtocol: cfg.KafkaSecurityProtocol,
+		SASLMechanism:    cfg.KafkaSASLMechanism,
+		Username:         cfg.KafkaUsername,
+		Password:         cfg.KafkaPassword,
+		ClientID:         cfg.KafkaClientID,
+		ConsumerGroup:    cfg.KafkaConsumerGroup,
+	}
 	log.Printf(
 		"kafka configured brokers=%v produced_topics=[%s,%s,%s,%s] consumed_topics=[%s,%s,%s]",
 		cfg.KafkaBrokers,
@@ -68,13 +77,13 @@ func main() {
 		topics.SubscriptionRenewalRequested,
 	)
 	if cfg.KafkaEnsureTopics {
-		if err := kafkaadapter.EnsureTopics(cfg.KafkaBrokers, topics); err != nil {
+		if err := kafkaadapter.EnsureTopics(kafkaConfig, topics); err != nil {
 			log.Fatalf("kafka topic ensure failed: %v", err)
 		}
 	} else {
 		log.Printf("kafka topic ensure skipped: KAFKA_ENSURE_TOPICS=%t", cfg.KafkaEnsureTopics)
 	}
-	publisher := kafkaadapter.NewProducer(cfg.KafkaBrokers, topics)
+	publisher := kafkaadapter.NewProducer(kafkaConfig, topics)
 	paymentProvider := stripeadapter.NewAdapter(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
 
 	paymentMethodCommands := commandservices.NewPaymentMethodCommandService(paymentMethodRepository, paymentProvider, publisher)
@@ -86,7 +95,7 @@ func main() {
 	invoiceQueries := queryservices.NewInvoiceQueryService(invoiceRepository)
 
 	subscriptionHandler := eventhandlers.NewSubscriptionEventsHandler(paymentCommands)
-	consumer := kafkaadapter.NewConsumer(cfg.KafkaBrokers, cfg.KafkaClientID, topics, subscriptionHandler)
+	consumer := kafkaadapter.NewConsumer(kafkaConfig, topics, subscriptionHandler)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

@@ -1,6 +1,7 @@
 package kafkaadapter
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -18,8 +19,8 @@ const (
 // EnsureTopics makes sure every configured topic exists in the broker before
 // producers and consumers start using them. This keeps local/dev setups
 // convenient and makes first-run startup on a new machine more predictable.
-func EnsureTopics(brokers []string, topics Topics) error {
-	if len(brokers) == 0 {
+func EnsureTopics(config ConnectionConfig, topics Topics) error {
+	if len(config.Brokers) == 0 {
 		log.Println("kafka topic ensure skipped: no brokers configured")
 		return nil
 	}
@@ -38,9 +39,10 @@ func EnsureTopics(brokers []string, topics Topics) error {
 		return nil
 	}
 
-	conn, err := segmentio.Dial("tcp", brokers[0])
+	dialer := config.dialer()
+	conn, err := dialer.DialContext(context.Background(), "tcp", config.Brokers[0])
 	if err != nil {
-		return fmt.Errorf("dial broker %s: %w", brokers[0], err)
+		return fmt.Errorf("dial broker %s: %w", config.Brokers[0], err)
 	}
 	defer conn.Close()
 
@@ -50,7 +52,7 @@ func EnsureTopics(brokers []string, topics Topics) error {
 	}
 
 	controllerAddr := net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port))
-	controllerConn, err := segmentio.Dial("tcp", controllerAddr)
+	controllerConn, err := dialer.DialContext(context.Background(), "tcp", controllerAddr)
 	if err != nil {
 		return fmt.Errorf("dial kafka controller %s: %w", controllerAddr, err)
 	}

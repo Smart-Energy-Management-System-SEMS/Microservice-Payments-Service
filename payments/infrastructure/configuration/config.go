@@ -31,7 +31,12 @@ type Config struct {
 	StripeWebhookSecret                    string
 	StripeCurrency                         string
 	KafkaBrokers                           []string
+	KafkaSecurityProtocol                  string
+	KafkaSASLMechanism                     string
+	KafkaUsername                          string
+	KafkaPassword                          string
 	KafkaClientID                          string
+	KafkaConsumerGroup                     string
 	KafkaPaymentProcessedTopic             string
 	KafkaPaymentFailedTopic                string
 	KafkaInvoiceGeneratedTopic             string
@@ -49,6 +54,7 @@ func Load() Config {
 	if err := godotenv.Load(); err != nil {
 		log.Printf(".env not loaded, using environment variables: %v", err)
 	}
+	kafkaClientID := getEnv("KAFKA_CLIENT_ID", serviceName)
 	cfg := Config{
 		AppEnv:               getEnv("APP_ENV", "development"),
 		ServerPort:           firstNonEmpty(getEnv("PORT", ""), getEnv("SERVER_PORT", "8085")),
@@ -56,7 +62,7 @@ func Load() Config {
 		AutoMigrate:          strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
 		KafkaEnsureTopics:    strings.EqualFold(getEnv("KAFKA_ENSURE_TOPICS", "false"), "true"),
 		ConfigServiceURL:     getEnv("CONFIG_SERVICE_URL", ""),
-		CORSAllowedOrigins:   splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173")),
+		CORSAllowedOrigins:   splitCSV(getEnvWithFallback("CORS_ALLOWED_ORIGINS", "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173")),
 		CORSAllowCredentials: strings.EqualFold(getEnv("CORS_ALLOW_CREDENTIALS", "false"), "true"),
 		DatabaseURL:          getEnv("DATABASE_URL", ""),
 		StripeSecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
@@ -65,7 +71,12 @@ func Load() Config {
 		// Read the official KAFKA_TOPIC_* names first, but keep the legacy
 		// KAFKA_*_TOPIC variants as fallbacks so existing deployments keep working.
 		KafkaBrokers:                           splitCSV(getEnv("KAFKA_BROKERS", "localhost:9092")),
-		KafkaClientID:                          getEnv("KAFKA_CLIENT_ID", serviceName),
+		KafkaSecurityProtocol:                  getEnv("KAFKA_SECURITY_PROTOCOL", ""),
+		KafkaSASLMechanism:                     getEnv("KAFKA_SASL_MECHANISM", ""),
+		KafkaUsername:                          getEnv("KAFKA_USERNAME", ""),
+		KafkaPassword:                          getEnv("KAFKA_PASSWORD", ""),
+		KafkaClientID:                          kafkaClientID,
+		KafkaConsumerGroup:                     firstNonEmpty(getEnvWithFallback("KAFKA_CONSUMER_GROUP", "KAFKA_GROUP_ID", ""), kafkaClientID+"-group"),
 		KafkaPaymentProcessedTopic:             getEnvWithFallback("KAFKA_TOPIC_PAYMENT_PROCESSED", "KAFKA_PAYMENT_PROCESSED_TOPIC", "payment.processed"),
 		KafkaPaymentFailedTopic:                getEnvWithFallback("KAFKA_TOPIC_PAYMENT_FAILED", "KAFKA_PAYMENT_FAILED_TOPIC", "payment.failed"),
 		KafkaInvoiceGeneratedTopic:             getEnvWithFallback("KAFKA_TOPIC_INVOICE_GENERATED", "KAFKA_INVOICE_GENERATED_TOPIC", "invoice.generated"),

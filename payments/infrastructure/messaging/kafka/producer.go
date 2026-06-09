@@ -31,14 +31,14 @@ type Topics struct {
 // "writers" map and reuses them, since creating a writer is comparatively
 // expensive.
 type Producer struct {
-	brokers []string
+	config  ConnectionConfig
 	topics  Topics
 	writers map[string]*segmentio.Writer
 }
 
 // NewProducer builds a Producer with an initialised (non-nil) writers map.
-func NewProducer(brokers []string, topics Topics) *Producer {
-	return &Producer{brokers: brokers, topics: topics, writers: map[string]*segmentio.Writer{}}
+func NewProducer(config ConnectionConfig, topics Topics) *Producer {
+	return &Producer{config: config, topics: topics, writers: map[string]*segmentio.Writer{}}
 }
 
 // The Publish* methods each build the JSON payload for one event type and hand
@@ -116,7 +116,7 @@ func (p *Producer) Close() error {
 // service run locally without a Kafka cluster. Otherwise it serialises the
 // payload to JSON and writes the message.
 func (p *Producer) publish(ctx context.Context, topic string, key string, payload interface{}) error {
-	if topic == "" || len(p.brokers) == 0 {
+	if topic == "" || len(p.config.Brokers) == 0 {
 		log.Printf("kafka publish skipped for topic=%s", topic)
 		return nil
 	}
@@ -126,7 +126,7 @@ func (p *Producer) publish(ctx context.Context, topic string, key string, payloa
 	}
 	writer := p.writer(topic)
 	if err := writer.WriteMessages(ctx, segmentio.Message{Key: []byte(key), Value: value}); err != nil {
-		log.Printf("kafka publish failed topic=%s key=%s brokers=%v err=%v", topic, key, p.brokers, err)
+		log.Printf("kafka publish failed topic=%s key=%s brokers=%v err=%v", topic, key, p.config.Brokers, err)
 		return err
 	}
 	log.Printf("kafka publish succeeded topic=%s key=%s", topic, key)
@@ -141,9 +141,10 @@ func (p *Producer) writer(topic string) *segmentio.Writer {
 		return writer
 	}
 	writer := &segmentio.Writer{
-		Addr:     segmentio.TCP(p.brokers...),
-		Topic:    topic,
-		Balancer: &segmentio.LeastBytes{},
+		Addr:      segmentio.TCP(p.config.Brokers...),
+		Topic:     topic,
+		Balancer:  &segmentio.LeastBytes{},
+		Transport: p.config.transport(),
 	}
 	p.writers[topic] = writer
 	return writer

@@ -13,20 +13,19 @@ import (
 )
 
 type Consumer struct {
-	brokers  []string
-	clientID string
-	topics   Topics
-	handler  *eventhandlers.SubscriptionEventsHandler
-	readers  []*segmentio.Reader
-	wg       sync.WaitGroup
+	config  ConnectionConfig
+	topics  Topics
+	handler *eventhandlers.SubscriptionEventsHandler
+	readers []*segmentio.Reader
+	wg      sync.WaitGroup
 }
 
-func NewConsumer(brokers []string, clientID string, topics Topics, handler *eventhandlers.SubscriptionEventsHandler) *Consumer {
-	return &Consumer{brokers: brokers, clientID: clientID, topics: topics, handler: handler}
+func NewConsumer(config ConnectionConfig, topics Topics, handler *eventhandlers.SubscriptionEventsHandler) *Consumer {
+	return &Consumer{config: config, topics: topics, handler: handler}
 }
 
 func (c *Consumer) Start(ctx context.Context) error {
-	if len(c.brokers) == 0 {
+	if len(c.config.Brokers) == 0 {
 		log.Println("kafka consumer disabled: no brokers configured")
 		return nil
 	}
@@ -70,11 +69,12 @@ func (c *Consumer) consume(ctx context.Context, topic string, handle func(contex
 		return
 	}
 	reader := segmentio.NewReader(segmentio.ReaderConfig{
-		Brokers:  c.brokers,
+		Brokers:  c.config.Brokers,
 		Topic:    topic,
-		GroupID:  c.clientID + "-group",
+		GroupID:  c.config.ConsumerGroup,
 		MinBytes: 1,
 		MaxBytes: 10e6,
+		Dialer:   c.config.dialer(),
 	})
 	c.readers = append(c.readers, reader)
 	c.wg.Add(1)
