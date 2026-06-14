@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"sync"
 	"time"
 
 	segmentio "github.com/segmentio/kafka-go"
@@ -27,6 +28,7 @@ type Topics struct {
 type Producer struct {
 	config  ConnectionConfig
 	topics  Topics
+	mu      sync.Mutex
 	writers map[string]*segmentio.Writer
 }
 
@@ -89,6 +91,8 @@ func (p *Producer) PublishPaymentMethodAdded(ctx context.Context, method entitie
 // the last error but still tries to close every writer.
 func (p *Producer) Close() error {
 	var lastErr error
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	for _, writer := range p.writers {
 		if err := writer.Close(); err != nil {
 			lastErr = err
@@ -103,9 +107,10 @@ func (p *Producer) Close() error {
 // payload to JSON and writes the message.
 func (p *Producer) publish(ctx context.Context, topic string, key string, eventType string, data interface{}) error {
 	if topic == "" || len(p.config.Brokers) == 0 {
-		log.Printf("kafka publish skipped for topic=%s", topic)
+		log.Printf("kafka publish skipped eventType=%s topic=%s brokers=%v", eventType, topic, p.config.Brokers)
 		return nil
 	}
+	log.Printf("kafka publish started eventType=%s topic=%s key=%s", eventType, topic, key)
 	value, err := json.Marshal(map[string]interface{}{
 		"eventType":  eventType,
 		"occurredAt": time.Now().UTC(),
@@ -116,10 +121,10 @@ func (p *Producer) publish(ctx context.Context, topic string, key string, eventT
 	}
 	writer := p.writer(topic)
 	if err := writer.WriteMessages(ctx, segmentio.Message{Key: []byte(key), Value: value}); err != nil {
-		log.Printf("kafka publish failed topic=%s key=%s brokers=%v err=%v", topic, key, p.config.Brokers, err)
+		log.Printf("kafka publish failed eventType=%s topic=%s key=%s brokers=%v err=%v", eventType, topic, key, p.config.Brokers, err)
 		return err
 	}
-	log.Printf("kafka publish succeeded topic=%s key=%s", topic, key)
+	log.Printf("kafka publish succeeded eventType=%s topic=%s key=%s", eventType, topic, key)
 	return nil
 }
 
@@ -127,6 +132,8 @@ func (p *Producer) publish(ctx context.Context, topic string, key string, eventT
 // ("lazy initialisation"). LeastBytes balances messages toward the least-loaded
 // partition.
 func (p *Producer) writer(topic string) *segmentio.Writer {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if writer, ok := p.writers[topic]; ok {
 		return writer
 	}

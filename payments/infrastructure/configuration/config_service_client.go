@@ -36,9 +36,17 @@ type KafkaTopicsConfig struct {
 }
 
 type KafkaConfigResponse struct {
-	BootstrapServers []string          `json:"bootstrap_servers"`
-	ClientID         string            `json:"client_id"`
-	Topics           KafkaTopicsConfig `json:"topics"`
+	BootstrapServers     []string            `json:"bootstrap_servers"`
+	BootstrapServersText string              `json:"bootstrapServers"`
+	BrokersText          string              `json:"brokers"`
+	BrokerList           []string            `json:"brokerList"`
+	ClientID             string              `json:"client_id"`
+	ClientIDAlt          string              `json:"clientId"`
+	Topics               KafkaTopicsConfig   `json:"topics"`
+	PublishTopics        map[string][]string `json:"publishTopics"`
+	ProducedTopics       map[string][]string `json:"producedTopics"`
+	ConsumeTopics        map[string][]string `json:"consumeTopics"`
+	ConsumedTopics       map[string][]string `json:"consumedTopics"`
 }
 
 type ServicesEnvelope struct {

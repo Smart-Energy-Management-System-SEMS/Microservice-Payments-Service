@@ -133,20 +133,28 @@ func applyConfigServiceOverrides(ctx context.Context, cfg *Config) {
 	}
 	if len(kafkaCfg.BootstrapServers) > 0 {
 		cfg.KafkaBrokers = kafkaCfg.BootstrapServers
+	} else if len(kafkaCfg.BrokerList) > 0 {
+		cfg.KafkaBrokers = kafkaCfg.BrokerList
+	} else if brokers := splitCSV(firstNonEmpty(kafkaCfg.BootstrapServersText, kafkaCfg.BrokersText)); len(brokers) > 0 {
+		cfg.KafkaBrokers = brokers
 	}
-	if kafkaCfg.ClientID != "" {
-		cfg.KafkaClientID = kafkaCfg.ClientID
+	if clientID := firstNonEmpty(kafkaCfg.ClientID, kafkaCfg.ClientIDAlt); clientID != "" {
+		cfg.KafkaClientID = clientID
 	}
 	cfg.KafkaPaymentsEventsTopic = firstNonEmpty(
 		kafkaCfg.Topics.PaymentsEvents,
 		kafkaCfg.Topics.PaymentProcessed,
 		kafkaCfg.Topics.PaymentFailed,
 		kafkaCfg.Topics.PaymentMethodAdded,
+		firstTopicForService(serviceName, kafkaCfg.PublishTopics),
+		firstTopicForService(serviceName, kafkaCfg.ProducedTopics),
 		cfg.KafkaPaymentsEventsTopic,
 	)
 	cfg.KafkaBillingEventsTopic = firstNonEmpty(
 		kafkaCfg.Topics.BillingEvents,
 		kafkaCfg.Topics.InvoiceGenerated,
+		topicForService(serviceName, kafkaCfg.ConsumeTopics, "billing.events"),
+		topicForService(serviceName, kafkaCfg.ConsumedTopics, "billing.events"),
 		cfg.KafkaBillingEventsTopic,
 	)
 	cfg.KafkaSubscriptionsEventsTopic = firstNonEmpty(
@@ -154,6 +162,8 @@ func applyConfigServiceOverrides(ctx context.Context, cfg *Config) {
 		kafkaCfg.Topics.SubscriptionCreated,
 		kafkaCfg.Topics.SubscriptionRenewalRequested,
 		kafkaCfg.Topics.SubscriptionCancelled,
+		topicForService(serviceName, kafkaCfg.ConsumeTopics, "subscriptions.events"),
+		topicForService(serviceName, kafkaCfg.ConsumedTopics, "subscriptions.events"),
 		cfg.KafkaSubscriptionsEventsTopic,
 	)
 }
@@ -200,6 +210,31 @@ func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed
+		}
+	}
+	return ""
+}
+
+func firstTopicForService(service string, topicsByService map[string][]string) string {
+	if len(topicsByService) == 0 {
+		return ""
+	}
+	for _, topic := range topicsByService[strings.TrimSpace(service)] {
+		if trimmed := strings.TrimSpace(topic); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func topicForService(service string, topicsByService map[string][]string, expected string) string {
+	if len(topicsByService) == 0 {
+		return ""
+	}
+	expected = strings.TrimSpace(expected)
+	for _, topic := range topicsByService[strings.TrimSpace(service)] {
+		if strings.EqualFold(strings.TrimSpace(topic), expected) {
+			return expected
 		}
 	}
 	return ""
