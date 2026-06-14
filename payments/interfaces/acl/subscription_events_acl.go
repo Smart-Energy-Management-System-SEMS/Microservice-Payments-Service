@@ -8,6 +8,12 @@ import (
 	"Microservice-Payments-Service/payments/application/outboundservices"
 )
 
+type eventEnvelope struct {
+	EventType      string                    `json:"eventType"`
+	EventTypeSnake string                    `json:"event_type"`
+	Data           *subscriptionEventPayload `json:"data"`
+}
+
 type subscriptionEventPayload struct {
 	SubscriptionID        string                    `json:"subscription_id"`
 	SubscriptionIDLegacy  string                    `json:"SubscriptionID"`
@@ -21,7 +27,21 @@ type subscriptionEventPayload struct {
 	CurrencyLegacy        string                    `json:"Currency"`
 	Reason                string                    `json:"reason"`
 	ReasonLegacy          string                    `json:"Reason"`
+	Source                string                    `json:"source"`
+	SourceLegacy          string                    `json:"Source"`
 	Data                  *subscriptionEventPayload `json:"data"`
+}
+
+func EventType(payload []byte) (string, error) {
+	var envelope eventEnvelope
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return "", err
+	}
+	eventType := strings.TrimSpace(envelope.EventType)
+	if eventType == "" {
+		eventType = strings.TrimSpace(envelope.EventTypeSnake)
+	}
+	return eventType, nil
 }
 
 func TranslateSubscriptionCreated(payload []byte) (outboundservices.SubscriptionCreatedEvent, error) {
@@ -70,16 +90,47 @@ func TranslateSubscriptionCancelled(payload []byte) (outboundservices.Subscripti
 	}, nil
 }
 
+func TranslateBillingPaymentRequested(payload []byte) (outboundservices.BillingPaymentRequestedEvent, error) {
+	event, err := decodeSubscriptionEvent(payload)
+	if err != nil {
+		return outboundservices.BillingPaymentRequestedEvent{}, err
+	}
+	if event.SubscriptionID == "" || event.UserID == "" || event.PaymentMethodID == "" || event.Amount <= 0 {
+		return outboundservices.BillingPaymentRequestedEvent{}, errors.New("billing payment payload requires subscription_id, user_id, payment_method_id and amount")
+	}
+	return outboundservices.BillingPaymentRequestedEvent{
+		SubscriptionID:  event.SubscriptionID,
+		UserID:          event.UserID,
+		PaymentMethodID: event.PaymentMethodID,
+		Amount:          event.Amount,
+		Currency:        event.Currency,
+		Source:          firstNonEmptyString(event.Source, "billing.events"),
+	}, nil
+}
+
 func decodeSubscriptionEvent(payload []byte) (subscriptionEventPayload, error) {
-	var envelope subscriptionEventPayload
+	var envelope eventEnvelope
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return subscriptionEventPayload{}, err
 	}
 	if envelope.Data != nil {
-		mergeSubscriptionEvent(&envelope, envelope.Data)
+		target := *envelope.Data
+		if target.Data != nil {
+			mergeSubscriptionEvent(&target, target.Data)
+		}
+		normalizeSubscriptionEvent(&target)
+		return target, nil
 	}
-	normalizeSubscriptionEvent(&envelope)
-	return envelope, nil
+
+	var direct subscriptionEventPayload
+	if err := json.Unmarshal(payload, &direct); err != nil {
+		return subscriptionEventPayload{}, err
+	}
+	if direct.Data != nil {
+		mergeSubscriptionEvent(&direct, direct.Data)
+	}
+	normalizeSubscriptionEvent(&direct)
+	return direct, nil
 }
 
 func mergeSubscriptionEvent(target *subscriptionEventPayload, data *subscriptionEventPayload) {
@@ -119,6 +170,12 @@ func mergeSubscriptionEvent(target *subscriptionEventPayload, data *subscription
 	if target.ReasonLegacy == "" {
 		target.ReasonLegacy = data.ReasonLegacy
 	}
+	if target.Source == "" {
+		target.Source = data.Source
+	}
+	if target.SourceLegacy == "" {
+		target.SourceLegacy = data.SourceLegacy
+	}
 }
 
 func normalizeSubscriptionEvent(event *subscriptionEventPayload) {
@@ -140,9 +197,22 @@ func normalizeSubscriptionEvent(event *subscriptionEventPayload) {
 	if event.Reason == "" {
 		event.Reason = event.ReasonLegacy
 	}
+	if event.Source == "" {
+		event.Source = event.SourceLegacy
+	}
 	event.SubscriptionID = strings.TrimSpace(event.SubscriptionID)
 	event.UserID = strings.TrimSpace(event.UserID)
 	event.PaymentMethodID = strings.TrimSpace(event.PaymentMethodID)
 	event.Currency = strings.ToLower(strings.TrimSpace(event.Currency))
 	event.Reason = strings.TrimSpace(event.Reason)
+	event.Source = strings.TrimSpace(event.Source)
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

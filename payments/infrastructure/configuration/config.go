@@ -18,32 +18,28 @@ const serviceName = "payments-service"
 
 // Config is the full, flat set of settings used across the service.
 type Config struct {
-	AppEnv                                 string
-	ServerPort                             string
-	APIBasePath                            string
-	AutoMigrate                            bool
-	KafkaEnsureTopics                      bool
-	ConfigServiceURL                       string
-	CORSAllowedOrigins                     []string
-	CORSAllowCredentials                   bool
-	DatabaseURL                            string
-	StripeSecretKey                        string
-	StripeWebhookSecret                    string
-	StripeCurrency                         string
-	KafkaBrokers                           []string
-	KafkaSecurityProtocol                  string
-	KafkaSASLMechanism                     string
-	KafkaUsername                          string
-	KafkaPassword                          string
-	KafkaClientID                          string
-	KafkaConsumerGroup                     string
-	KafkaPaymentProcessedTopic             string
-	KafkaPaymentFailedTopic                string
-	KafkaInvoiceGeneratedTopic             string
-	KafkaPaymentMethodAddedTopic           string
-	KafkaSubscriptionCreatedTopic          string
-	KafkaSubscriptionRenewalRequestedTopic string
-	KafkaSubscriptionCancelledTopic        string
+	AppEnv                        string
+	ServerPort                    string
+	APIBasePath                   string
+	AutoMigrate                   bool
+	KafkaEnsureTopics             bool
+	ConfigServiceURL              string
+	CORSAllowedOrigins            []string
+	CORSAllowCredentials          bool
+	DatabaseURL                   string
+	StripeSecretKey               string
+	StripeWebhookSecret           string
+	StripeCurrency                string
+	KafkaBrokers                  []string
+	KafkaSecurityProtocol         string
+	KafkaSASLMechanism            string
+	KafkaUsername                 string
+	KafkaPassword                 string
+	KafkaClientID                 string
+	KafkaConsumerGroup            string
+	KafkaPaymentsEventsTopic      string
+	KafkaBillingEventsTopic       string
+	KafkaSubscriptionsEventsTopic string
 }
 
 // Load builds the configuration. It first tries to read a local .env file (handy
@@ -70,20 +66,34 @@ func Load() Config {
 		StripeCurrency:       getEnv("STRIPE_CURRENCY", "pen"),
 		// Read the official KAFKA_TOPIC_* names first, but keep the legacy
 		// KAFKA_*_TOPIC variants as fallbacks so existing deployments keep working.
-		KafkaBrokers:                           splitCSV(getEnv("KAFKA_BROKERS", "localhost:9092")),
-		KafkaSecurityProtocol:                  getEnv("KAFKA_SECURITY_PROTOCOL", ""),
-		KafkaSASLMechanism:                     getEnv("KAFKA_SASL_MECHANISM", ""),
-		KafkaUsername:                          getEnv("KAFKA_USERNAME", ""),
-		KafkaPassword:                          getEnv("KAFKA_PASSWORD", ""),
-		KafkaClientID:                          kafkaClientID,
-		KafkaConsumerGroup:                     firstNonEmpty(getEnvWithFallback("KAFKA_CONSUMER_GROUP", "KAFKA_GROUP_ID", ""), kafkaClientID+"-group"),
-		KafkaPaymentProcessedTopic:             getEnvWithFallback("KAFKA_TOPIC_PAYMENT_PROCESSED", "KAFKA_PAYMENT_PROCESSED_TOPIC", "payment.processed"),
-		KafkaPaymentFailedTopic:                getEnvWithFallback("KAFKA_TOPIC_PAYMENT_FAILED", "KAFKA_PAYMENT_FAILED_TOPIC", "payment.failed"),
-		KafkaInvoiceGeneratedTopic:             getEnvWithFallback("KAFKA_TOPIC_INVOICE_GENERATED", "KAFKA_INVOICE_GENERATED_TOPIC", "invoice.generated"),
-		KafkaPaymentMethodAddedTopic:           getEnvWithFallback("KAFKA_TOPIC_PAYMENT_METHOD_ADDED", "KAFKA_PAYMENT_METHOD_ADDED_TOPIC", "payment.method.added"),
-		KafkaSubscriptionCreatedTopic:          getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_CREATED", "KAFKA_SUBSCRIPTION_CREATED_TOPIC", "subscription.created"),
-		KafkaSubscriptionRenewalRequestedTopic: getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED", "KAFKA_SUBSCRIPTION_RENEWAL_REQUESTED_TOPIC", "subscription.renewal.requested"),
-		KafkaSubscriptionCancelledTopic:        getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_CANCELLED", "KAFKA_SUBSCRIPTION_CANCELLED_TOPIC", "subscription.cancelled"),
+		KafkaBrokers:          splitCSV(getEnv("KAFKA_BROKERS", "")),
+		KafkaSecurityProtocol: getEnv("KAFKA_SECURITY_PROTOCOL", ""),
+		KafkaSASLMechanism:    getEnv("KAFKA_SASL_MECHANISM", ""),
+		KafkaUsername:         getEnv("KAFKA_USERNAME", ""),
+		KafkaPassword:         getEnv("KAFKA_PASSWORD", ""),
+		KafkaClientID:         kafkaClientID,
+		KafkaConsumerGroup:    firstNonEmpty(getEnvWithFallback("KAFKA_CONSUMER_GROUP", "KAFKA_GROUP_ID", ""), kafkaClientID+"-group"),
+		KafkaPaymentsEventsTopic: firstNonEmpty(
+			getEnv("KAFKA_TOPIC_PAYMENTS_EVENTS", ""),
+			firstNonEmpty(
+				getEnv("KAFKA_PAYMENTS_EVENTS_TOPIC", ""),
+				firstNonEmpty(getEnvWithFallback("KAFKA_TOPIC_PAYMENT_PROCESSED", "KAFKA_PAYMENT_PROCESSED_TOPIC", ""), "payments.events"),
+			),
+		),
+		KafkaBillingEventsTopic: firstNonEmpty(
+			getEnv("KAFKA_TOPIC_BILLING_EVENTS", ""),
+			firstNonEmpty(
+				getEnv("KAFKA_BILLING_EVENTS_TOPIC", ""),
+				firstNonEmpty(getEnvWithFallback("KAFKA_TOPIC_INVOICE_GENERATED", "KAFKA_INVOICE_GENERATED_TOPIC", ""), "billing.events"),
+			),
+		),
+		KafkaSubscriptionsEventsTopic: firstNonEmpty(
+			getEnv("KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS", ""),
+			firstNonEmpty(
+				getEnv("KAFKA_SUBSCRIPTIONS_EVENTS_TOPIC", ""),
+				firstNonEmpty(getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_CREATED", "KAFKA_SUBSCRIPTION_CREATED_TOPIC", ""), "subscriptions.events"),
+			),
+		),
 	}
 	applyConfigServiceOverrides(context.Background(), &cfg)
 	return cfg
@@ -127,13 +137,25 @@ func applyConfigServiceOverrides(ctx context.Context, cfg *Config) {
 	if kafkaCfg.ClientID != "" {
 		cfg.KafkaClientID = kafkaCfg.ClientID
 	}
-	cfg.KafkaPaymentProcessedTopic = firstNonEmpty(kafkaCfg.Topics.PaymentProcessed, cfg.KafkaPaymentProcessedTopic)
-	cfg.KafkaPaymentFailedTopic = firstNonEmpty(kafkaCfg.Topics.PaymentFailed, cfg.KafkaPaymentFailedTopic)
-	cfg.KafkaInvoiceGeneratedTopic = firstNonEmpty(kafkaCfg.Topics.InvoiceGenerated, cfg.KafkaInvoiceGeneratedTopic)
-	cfg.KafkaPaymentMethodAddedTopic = firstNonEmpty(kafkaCfg.Topics.PaymentMethodAdded, cfg.KafkaPaymentMethodAddedTopic)
-	cfg.KafkaSubscriptionCreatedTopic = firstNonEmpty(kafkaCfg.Topics.SubscriptionCreated, cfg.KafkaSubscriptionCreatedTopic)
-	cfg.KafkaSubscriptionRenewalRequestedTopic = firstNonEmpty(kafkaCfg.Topics.SubscriptionRenewalRequested, cfg.KafkaSubscriptionRenewalRequestedTopic)
-	cfg.KafkaSubscriptionCancelledTopic = firstNonEmpty(kafkaCfg.Topics.SubscriptionCancelled, cfg.KafkaSubscriptionCancelledTopic)
+	cfg.KafkaPaymentsEventsTopic = firstNonEmpty(
+		kafkaCfg.Topics.PaymentsEvents,
+		kafkaCfg.Topics.PaymentProcessed,
+		kafkaCfg.Topics.PaymentFailed,
+		kafkaCfg.Topics.PaymentMethodAdded,
+		cfg.KafkaPaymentsEventsTopic,
+	)
+	cfg.KafkaBillingEventsTopic = firstNonEmpty(
+		kafkaCfg.Topics.BillingEvents,
+		kafkaCfg.Topics.InvoiceGenerated,
+		cfg.KafkaBillingEventsTopic,
+	)
+	cfg.KafkaSubscriptionsEventsTopic = firstNonEmpty(
+		kafkaCfg.Topics.SubscriptionsEvents,
+		kafkaCfg.Topics.SubscriptionCreated,
+		kafkaCfg.Topics.SubscriptionRenewalRequested,
+		kafkaCfg.Topics.SubscriptionCancelled,
+		cfg.KafkaSubscriptionsEventsTopic,
+	)
 }
 
 // The helpers below keep the Load function clean and free of repetition.
@@ -174,10 +196,11 @@ func splitCSV(value string) []string {
 
 // firstNonEmpty returns the value if it has content, otherwise the fallback.
 // It is the building block for the "only override when provided" merge rule.
-func firstNonEmpty(value string, fallback string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return fallback
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
 	}
-	return value
+	return ""
 }

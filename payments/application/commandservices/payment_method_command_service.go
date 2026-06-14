@@ -2,6 +2,7 @@ package commandservices
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	"Microservice-Payments-Service/payments/application/outboundservices"
@@ -33,6 +34,7 @@ func (s *PaymentMethodCommandService) Register(ctx context.Context, command comm
 
 	details, err := s.provider.GetPaymentMethodDetails(ctx, stripePaymentMethodID)
 	if err != nil {
+		log.Printf("payment method lookup failed stripe_payment_method_id=%s: %v", stripePaymentMethodID, err)
 		return nil, err
 	}
 
@@ -43,13 +45,17 @@ func (s *PaymentMethodCommandService) Register(ctx context.Context, command comm
 	method := entities.NewPaymentMethod(userID, methodType, details.Brand, details.Last4, details.ExpMonth, details.ExpYear, stripePaymentMethodID, command.IsDefault)
 	if method.IsDefault {
 		if err := s.repository.ClearDefaultForUser(ctx, userID); err != nil {
+			log.Printf("payment method default reset failed user_id=%s: %v", userID, err)
 			return nil, err
 		}
 	}
 	if err := s.repository.Save(ctx, &method); err != nil {
+		log.Printf("payment method persistence failed payment_method_id=%s user_id=%s: %v", method.PaymentMethodID, method.UserID, err)
 		return nil, err
 	}
-	_ = s.publisher.PublishPaymentMethodAdded(ctx, method)
+	if err := s.publisher.PublishPaymentMethodAdded(ctx, method); err != nil {
+		log.Printf("payment method event publish failed payment_method_id=%s: %v", method.PaymentMethodID, err)
+	}
 	return &method, nil
 }
 

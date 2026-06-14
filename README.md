@@ -34,35 +34,33 @@ Adicionales del servicio:
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_CURRENCY`
 - `KAFKA_CLIENT_ID`
-- `KAFKA_TOPIC_PAYMENT_PROCESSED`
-- `KAFKA_TOPIC_PAYMENT_FAILED`
-- `KAFKA_TOPIC_INVOICE_GENERATED`
-- `KAFKA_TOPIC_PAYMENT_METHOD_ADDED`
-- `KAFKA_TOPIC_SUBSCRIPTION_CREATED`
-- `KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED`
-- `KAFKA_TOPIC_SUBSCRIPTION_CANCELLED`
+- `KAFKA_CONSUMER_GROUP`
+- `KAFKA_TOPIC_PAYMENTS_EVENTS`
+- `KAFKA_TOPIC_BILLING_EVENTS`
+- `KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS`
 
-Nota de compatibilidad: el servicio prioriza `PORT`; si no existe, usa `SERVER_PORT`.
+Compatibilidad:
 
-## Ejemplo local (.env)
+- El servicio prioriza `PORT`; si no existe, usa `SERVER_PORT`.
+- Si todavia existen variables legacy como `KAFKA_TOPIC_PAYMENT_PROCESSED` o `KAFKA_TOPIC_SUBSCRIPTION_CREATED`, se usan como fallback durante la migracion.
+
+## Ejemplo Event Hubs / Azure (.env)
 
 ```env
 PORT=8080
-CONFIG_SERVICE_URL=http://localhost:8090
-KAFKA_BROKERS=localhost:9092
-KAFKA_SECURITY_PROTOCOL=
-KAFKA_SASL_MECHANISM=
-KAFKA_USERNAME=
-KAFKA_PASSWORD=
-KAFKA_TOPIC_PAYMENT_PROCESSED=payment.processed
-KAFKA_TOPIC_PAYMENT_FAILED=payment.failed
-KAFKA_TOPIC_INVOICE_GENERATED=invoice.generated
-KAFKA_TOPIC_PAYMENT_METHOD_ADDED=payment.method.added
-KAFKA_TOPIC_SUBSCRIPTION_CREATED=subscription.created
-KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED=subscription.renewal.requested
-KAFKA_TOPIC_SUBSCRIPTION_CANCELLED=subscription.cancelled
-DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/payments?sslmode=disable
-GIN_MODE=debug
+CONFIG_SERVICE_URL=https://<config-service-url>
+KAFKA_BROKERS=<eventhubs-namespace>.servicebus.windows.net:9093
+KAFKA_SECURITY_PROTOCOL=SASL_SSL
+KAFKA_SASL_MECHANISM=PLAIN
+KAFKA_USERNAME=$ConnectionString
+KAFKA_PASSWORD=Endpoint=sb://<eventhubs-namespace>.servicebus.windows.net/;SharedAccessKeyName=<policy>;SharedAccessKey=<key>
+KAFKA_CLIENT_ID=payments-service
+KAFKA_CONSUMER_GROUP=payments-service-group
+KAFKA_TOPIC_PAYMENTS_EVENTS=payments.events
+KAFKA_TOPIC_BILLING_EVENTS=billing.events
+KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS=subscriptions.events
+DATABASE_URL=postgresql://USER:PASSWORD@<postgres-host>:5432/payments?sslmode=require
+GIN_MODE=release
 ```
 
 ## Docker
@@ -73,7 +71,7 @@ Build de imagen:
 docker build -t sems-payments-service:local .
 ```
 
-Run local con archivo `.env`:
+Run con archivo `.env`:
 
 ```bash
 docker run --rm -p 8080:8080 --env-file .env --name sems-payments-service sems-payments-service:local
@@ -85,9 +83,9 @@ Prueba rápida:
 curl -i http://localhost:8080/api/v1/health
 ```
 
-## Ejemplo Azure Container Apps
+## Azure Container Apps
 
-El contenedor no debe usar `localhost` para servicios externos. Define variables en ACA con hosts reales (Kafka/Config Service/DB).
+El contenedor no debe usar `localhost` para servicios externos. Define variables en ACA con hosts reales para Config Service, Postgres y Azure Event Hubs.
 
 Variables mínimas recomendadas en ACA:
 
@@ -95,18 +93,16 @@ Variables mínimas recomendadas en ACA:
 PORT=8080
 GIN_MODE=release
 CONFIG_SERVICE_URL=https://<config-service-url>
-KAFKA_BROKERS=<broker1:9092,broker2:9092>
+KAFKA_BROKERS=<eventhubs-namespace>.servicebus.windows.net:9093
 KAFKA_SECURITY_PROTOCOL=SASL_SSL
 KAFKA_SASL_MECHANISM=PLAIN
-KAFKA_USERNAME=<usuario>
-KAFKA_PASSWORD=<password>
-KAFKA_TOPIC_PAYMENT_PROCESSED=payment.processed
-KAFKA_TOPIC_PAYMENT_FAILED=payment.failed
-KAFKA_TOPIC_INVOICE_GENERATED=invoice.generated
-KAFKA_TOPIC_PAYMENT_METHOD_ADDED=payment.method.added
-KAFKA_TOPIC_SUBSCRIPTION_CREATED=subscription.created
-KAFKA_TOPIC_SUBSCRIPTION_RENEWAL_REQUESTED=subscription.renewal.requested
-KAFKA_TOPIC_SUBSCRIPTION_CANCELLED=subscription.cancelled
+KAFKA_USERNAME=$ConnectionString
+KAFKA_PASSWORD=Endpoint=sb://<eventhubs-namespace>.servicebus.windows.net/;SharedAccessKeyName=<policy>;SharedAccessKey=<key>
+KAFKA_CLIENT_ID=payments-service
+KAFKA_CONSUMER_GROUP=payments-service-group
+KAFKA_TOPIC_PAYMENTS_EVENTS=payments.events
+KAFKA_TOPIC_BILLING_EVENTS=billing.events
+KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS=subscriptions.events
 DATABASE_URL=<conexion-postgres>
 ```
 
@@ -133,20 +129,46 @@ Con prefijo `/api/v1`:
 - `GET /invoices/payment/:paymentId`
 - `POST /webhooks/stripe`
 
-## Kafka topics
+## Kafka topics agrupados
 
 Payments publica:
 
-- `payment.processed`
-- `payment.failed`
-- `invoice.generated`
-- `payment.method.added`
+- `payments.events`
+- `billing.events`
 
 Payments consume:
+
+- `subscriptions.events`
+- `billing.events`
+
+Eventos publicados en `payments.events`:
+
+- `payment.method.added`
+- `payment.processed`
+- `payment.failed`
+
+Eventos publicados o consumidos en `billing.events`:
+
+- `invoice.generated` se publica cuando el pago se confirma y la factura queda generada.
+- `billing.payment.requested` o `payment.requested` pueden consumirse como disparadores de cobro si traen `subscription_id`, `user_id`, `payment_method_id`, `amount` y `currency` dentro de `data`.
+
+Eventos consumidos en `subscriptions.events`:
 
 - `subscription.created`
 - `subscription.cancelled`
 - `subscription.renewal.requested`
 
-Nota: `subscription.renewal.requested` queda soportado por el consumer y por la configuracion del micro, pero hoy depende de que otro microservicio realmente lo publique. Si nadie lo produce, no rompe el arranque; simplemente no llegaran eventos de ese topic.
+Envelope esperado:
+
+```json
+{
+  "eventType": "payment.processed",
+  "occurredAt": "2026-06-12T22:30:00Z",
+  "data": {
+    "payment_id": "uuid",
+    "subscription_id": "uuid",
+    "user_id": "uuid"
+  }
+}
+```
 

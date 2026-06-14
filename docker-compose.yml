@@ -11,6 +11,9 @@ services:
       API_BASE_PATH: ${API_BASE_PATH:-/api/v1}
       KAFKA_BROKERS: kafka:29092
       KAFKA_ENSURE_TOPICS: "false"
+      KAFKA_TOPIC_PAYMENTS_EVENTS: payments.events
+      KAFKA_TOPIC_BILLING_EVENTS: billing.events
+      KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS: subscriptions.events
     ports:
       - "${SERVER_PORT:-8086}:${SERVER_PORT:-8086}"
     depends_on:
@@ -52,13 +55,9 @@ services:
       - /bin/bash
       - -c
       - >
-        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic subscription.created --partitions 1 --replication-factor 1 &&
-        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic subscription.cancelled --partitions 1 --replication-factor 1 &&
-        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic subscription.renewal.requested --partitions 1 --replication-factor 1 &&
-        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic payment.processed --partitions 1 --replication-factor 1 &&
-        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic payment.failed --partitions 1 --replication-factor 1 &&
-        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic invoice.generated --partitions 1 --replication-factor 1 &&
-        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic payment.method.added --partitions 1 --replication-factor 1
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic subscriptions.events --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic payments.events --partitions 1 --replication-factor 1 &&
+        /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic billing.events --partitions 1 --replication-factor 1
     restart: "no"
     networks:
       - sems-payments-network

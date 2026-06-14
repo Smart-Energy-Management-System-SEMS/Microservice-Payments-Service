@@ -23,6 +23,9 @@ type ServiceConfigResponse struct {
 }
 
 type KafkaTopicsConfig struct {
+	PaymentsEvents               string `json:"payments_events"`
+	BillingEvents                string `json:"billing_events"`
+	SubscriptionsEvents          string `json:"subscriptions_events"`
 	PaymentProcessed             string `json:"payment_processed"`
 	PaymentFailed                string `json:"payment_failed"`
 	InvoiceGenerated             string `json:"invoice_generated"`

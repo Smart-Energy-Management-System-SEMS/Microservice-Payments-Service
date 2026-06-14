@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +36,7 @@ const (
 // breaker's state. Because many HTTP requests run concurrently, that shared
 // state is guarded by a mutex (mu) to avoid data races.
 type Adapter struct {
+	secretKey     string
 	webhookSecret string
 	mu            sync.Mutex
 	failures      int       // count of consecutive failures
@@ -44,11 +46,14 @@ type Adapter struct {
 // NewAdapter configures the global Stripe API key and returns the adapter.
 func NewAdapter(secretKey string, webhookSecret string) *Adapter {
 	stripesdk.Key = secretKey
-	return &Adapter{webhookSecret: webhookSecret}
+	return &Adapter{secretKey: secretKey, webhookSecret: webhookSecret}
 }
 
 func (a *Adapter) GetPaymentMethodDetails(ctx context.Context, stripePaymentMethodID string) (*outboundservices.PaymentMethodDetails, error) {
 	_ = ctx
+	if err := a.requireSecretKey(); err != nil {
+		return nil, err
+	}
 	if err := a.allowRequest(); err != nil {
 		return nil, err
 	}
@@ -71,6 +76,9 @@ func (a *Adapter) GetPaymentMethodDetails(ctx context.Context, stripePaymentMeth
 
 func (a *Adapter) AttachPaymentMethod(ctx context.Context, stripePaymentMethodID string, customerID string) error {
 	_ = ctx
+	if err := a.requireSecretKey(); err != nil {
+		return err
+	}
 	if err := a.allowRequest(); err != nil {
 		return err
 	}
@@ -90,6 +98,9 @@ func (a *Adapter) AttachPaymentMethod(ctx context.Context, stripePaymentMethodID
 // category with errors.Is while keeping Stripe's original message.
 func (a *Adapter) CreatePaymentIntent(ctx context.Context, request outboundservices.CreatePaymentIntentRequest) (*outboundservices.PaymentIntentResult, error) {
 	_ = ctx
+	if err := a.requireSecretKey(); err != nil {
+		return nil, err
+	}
 	if err := a.allowRequest(); err != nil {
 		return nil, err
 	}
@@ -122,6 +133,9 @@ func (a *Adapter) CreatePaymentIntent(ctx context.Context, request outboundservi
 
 func (a *Adapter) ConfirmPaymentIntent(ctx context.Context, paymentIntentID string) (*outboundservices.PaymentIntentResult, error) {
 	_ = ctx
+	if err := a.requireSecretKey(); err != nil {
+		return nil, err
+	}
 	if err := a.allowRequest(); err != nil {
 		return nil, err
 	}
@@ -142,6 +156,9 @@ func (a *Adapter) ConfirmPaymentIntent(ctx context.Context, paymentIntentID stri
 // NOT behind the circuit breaker — it is local crypto, not a network call.)
 func (a *Adapter) ParseWebhookEvent(ctx context.Context, payload []byte, signature string) (*outboundservices.ProviderWebhookEvent, error) {
 	_ = ctx
+	if strings.TrimSpace(a.webhookSecret) == "" {
+		return nil, fmt.Errorf("%w: stripe webhook secret is not configured", paymentdomain.ErrExternalProvider)
+	}
 	event, err := webhook.ConstructEvent(payload, signature, a.webhookSecret)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid stripe webhook signature", paymentdomain.ErrExternalProvider)
@@ -170,6 +187,13 @@ func (a *Adapter) ParseWebhookEvent(ctx context.Context, payload []byte, signatu
 // like 12.34*100 = 1233.9999 turning into 1233.
 func toMinorUnits(amount float64) int64 {
 	return int64(math.Round(amount * 100))
+}
+
+func (a *Adapter) requireSecretKey() error {
+	if strings.TrimSpace(a.secretKey) == "" {
+		return fmt.Errorf("%w: stripe secret key is not configured", paymentdomain.ErrExternalProvider)
+	}
+	return nil
 }
 
 // The three methods below are the circuit breaker. They all lock the mutex so

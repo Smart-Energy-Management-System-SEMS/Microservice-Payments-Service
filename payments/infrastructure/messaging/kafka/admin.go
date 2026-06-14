@@ -26,13 +26,9 @@ func EnsureTopics(config ConnectionConfig, topics Topics) error {
 	}
 
 	topicNames := uniqueTopics(
-		topics.PaymentProcessed,
-		topics.PaymentFailed,
-		topics.InvoiceGenerated,
-		topics.PaymentMethodAdded,
-		topics.SubscriptionCreated,
-		topics.SubscriptionRenewalRequested,
-		topics.SubscriptionCancelled,
+		topics.PaymentsEvents,
+		topics.BillingEvents,
+		topics.SubscriptionsEvents,
 	)
 	if len(topicNames) == 0 {
 		log.Println("kafka topic ensure skipped: no topics configured")

@@ -15,16 +15,10 @@ import (
 	"Microservice-Payments-Service/payments/domain/model/entities"
 )
 
-// Topics maps each kind of event to the Kafka topic name it is published on.
-// Keeping the names in config (not hard-coded) lets each environment use its own.
 type Topics struct {
-	PaymentProcessed             string
-	PaymentFailed                string
-	InvoiceGenerated             string
-	PaymentMethodAdded           string
-	SubscriptionCreated          string
-	SubscriptionRenewalRequested string
-	SubscriptionCancelled        string
+	PaymentsEvents      string
+	BillingEvents       string
+	SubscriptionsEvents string
 }
 
 // Producer sends messages to Kafka. It caches one writer per topic in the
@@ -47,9 +41,7 @@ func NewProducer(config ConnectionConfig, topics Topics) *Producer {
 // and therefore preserve their order.
 
 func (p *Producer) PublishPaymentProcessed(ctx context.Context, payment entities.Payment, invoice entities.Invoice) error {
-	return p.publish(ctx, p.topics.PaymentProcessed, payment.PaymentID.String(), map[string]interface{}{
-		"event_type":      "payment.processed",
-		"occurred_at":     time.Now().UTC(),
+	return p.publish(ctx, p.topics.PaymentsEvents, payment.PaymentID.String(), "payment.processed", map[string]interface{}{
 		"payment_id":      payment.PaymentID,
 		"subscription_id": payment.SubscriptionID,
 		"user_id":         payment.UserID,
@@ -61,9 +53,7 @@ func (p *Producer) PublishPaymentProcessed(ctx context.Context, payment entities
 }
 
 func (p *Producer) PublishPaymentFailed(ctx context.Context, payment entities.Payment) error {
-	return p.publish(ctx, p.topics.PaymentFailed, payment.PaymentID.String(), map[string]interface{}{
-		"event_type":      "payment.failed",
-		"occurred_at":     time.Now().UTC(),
+	return p.publish(ctx, p.topics.PaymentsEvents, payment.PaymentID.String(), "payment.failed", map[string]interface{}{
 		"payment_id":      payment.PaymentID,
 		"subscription_id": payment.SubscriptionID,
 		"user_id":         payment.UserID,
@@ -74,9 +64,7 @@ func (p *Producer) PublishPaymentFailed(ctx context.Context, payment entities.Pa
 }
 
 func (p *Producer) PublishInvoiceGenerated(ctx context.Context, invoice entities.Invoice) error {
-	return p.publish(ctx, p.topics.InvoiceGenerated, invoice.InvoiceID.String(), map[string]interface{}{
-		"event_type":     "invoice.generated",
-		"occurred_at":    time.Now().UTC(),
+	return p.publish(ctx, p.topics.BillingEvents, invoice.InvoiceID.String(), "invoice.generated", map[string]interface{}{
 		"invoice_id":     invoice.InvoiceID,
 		"payment_id":     invoice.PaymentID,
 		"invoice_number": invoice.InvoiceNumber,
@@ -87,9 +75,7 @@ func (p *Producer) PublishInvoiceGenerated(ctx context.Context, invoice entities
 }
 
 func (p *Producer) PublishPaymentMethodAdded(ctx context.Context, method entities.PaymentMethod) error {
-	return p.publish(ctx, p.topics.PaymentMethodAdded, method.PaymentMethodID.String(), map[string]interface{}{
-		"event_type":        "payment.method.added",
-		"occurred_at":       time.Now().UTC(),
+	return p.publish(ctx, p.topics.PaymentsEvents, method.PaymentMethodID.String(), "payment.method.added", map[string]interface{}{
 		"payment_method_id": method.PaymentMethodID,
 		"user_id":           method.UserID,
 		"type":              method.Type,
@@ -115,12 +101,16 @@ func (p *Producer) Close() error {
 // or no brokers) it logs and returns nil instead of failing — this lets the
 // service run locally without a Kafka cluster. Otherwise it serialises the
 // payload to JSON and writes the message.
-func (p *Producer) publish(ctx context.Context, topic string, key string, payload interface{}) error {
+func (p *Producer) publish(ctx context.Context, topic string, key string, eventType string, data interface{}) error {
 	if topic == "" || len(p.config.Brokers) == 0 {
 		log.Printf("kafka publish skipped for topic=%s", topic)
 		return nil
 	}
-	value, err := json.Marshal(payload)
+	value, err := json.Marshal(map[string]interface{}{
+		"eventType":  eventType,
+		"occurredAt": time.Now().UTC(),
+		"data":       data,
+	})
 	if err != nil {
 		return err
 	}

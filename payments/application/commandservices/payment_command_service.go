@@ -98,7 +98,9 @@ func (s *PaymentCommandService) Process(ctx context.Context, command commands.Pr
 		if saveErr := s.payments.Save(ctx, &payment); saveErr != nil {
 			log.Printf("could not persist failed payment: %v", saveErr)
 		}
-		_ = s.publisher.PublishPaymentFailed(ctx, payment)
+		if publishErr := s.publisher.PublishPaymentFailed(ctx, payment); publishErr != nil {
+			log.Printf("payment.failed publish error payment_id=%s: %v", payment.PaymentID, publishErr)
+		}
 		return &payment, nil, err
 	}
 
@@ -155,12 +157,18 @@ func (s *PaymentCommandService) afterPaymentStatusChanged(ctx context.Context, p
 		if err != nil {
 			return payment, nil, err
 		}
-		_ = s.publisher.PublishPaymentProcessed(ctx, *payment, *invoice)
-		_ = s.publisher.PublishInvoiceGenerated(ctx, *invoice)
+		if err := s.publisher.PublishPaymentProcessed(ctx, *payment, *invoice); err != nil {
+			log.Printf("payment.processed publish error payment_id=%s invoice_id=%s: %v", payment.PaymentID, invoice.InvoiceID, err)
+		}
+		if err := s.publisher.PublishInvoiceGenerated(ctx, *invoice); err != nil {
+			log.Printf("invoice.generated publish error invoice_id=%s: %v", invoice.InvoiceID, err)
+		}
 		return payment, invoice, nil
 	}
 	if payment.Status == valueobjects.PaymentStatusFailed || payment.Status == valueobjects.PaymentStatusCancelled {
-		_ = s.publisher.PublishPaymentFailed(ctx, *payment)
+		if err := s.publisher.PublishPaymentFailed(ctx, *payment); err != nil {
+			log.Printf("payment.failed publish error payment_id=%s: %v", payment.PaymentID, err)
+		}
 	}
 	return payment, nil, nil
 }

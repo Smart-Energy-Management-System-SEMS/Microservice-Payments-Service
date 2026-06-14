@@ -44,13 +44,9 @@ func main() {
 	webhookEventRepository := gormrepos.NewGormWebhookEventRepository(db)
 
 	topics := kafkaadapter.Topics{
-		PaymentProcessed:             cfg.KafkaPaymentProcessedTopic,
-		PaymentFailed:                cfg.KafkaPaymentFailedTopic,
-		InvoiceGenerated:             cfg.KafkaInvoiceGeneratedTopic,
-		PaymentMethodAdded:           cfg.KafkaPaymentMethodAddedTopic,
-		SubscriptionCreated:          cfg.KafkaSubscriptionCreatedTopic,
-		SubscriptionRenewalRequested: cfg.KafkaSubscriptionRenewalRequestedTopic,
-		SubscriptionCancelled:        cfg.KafkaSubscriptionCancelledTopic,
+		PaymentsEvents:      cfg.KafkaPaymentsEventsTopic,
+		BillingEvents:       cfg.KafkaBillingEventsTopic,
+		SubscriptionsEvents: cfg.KafkaSubscriptionsEventsTopic,
 	}
 	kafkaConfig := kafkaadapter.ConnectionConfig{
 		Brokers:          cfg.KafkaBrokers,
@@ -62,19 +58,12 @@ func main() {
 		ConsumerGroup:    cfg.KafkaConsumerGroup,
 	}
 	log.Printf(
-		"kafka configured brokers=%v produced_topics=[%s,%s,%s,%s] consumed_topics=[%s,%s,%s]",
+		"kafka configured brokers=%v produced_topics=[%s,%s] consumed_topics=[%s,%s]",
 		cfg.KafkaBrokers,
-		topics.PaymentProcessed,
-		topics.PaymentFailed,
-		topics.InvoiceGenerated,
-		topics.PaymentMethodAdded,
-		topics.SubscriptionCreated,
-		topics.SubscriptionRenewalRequested,
-		topics.SubscriptionCancelled,
-	)
-	log.Printf(
-		"kafka note: topic %q is configured as a supported future/pending subscription flow; payments will only receive events there once another microservice publishes them",
-		topics.SubscriptionRenewalRequested,
+		topics.PaymentsEvents,
+		topics.BillingEvents,
+		topics.SubscriptionsEvents,
+		topics.BillingEvents,
 	)
 	if cfg.KafkaEnsureTopics {
 		if err := kafkaadapter.EnsureTopics(kafkaConfig, topics); err != nil {
