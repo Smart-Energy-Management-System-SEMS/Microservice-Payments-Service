@@ -114,7 +114,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "payments-service"})
 	})
 	if cfg.SwaggerEnabled {
-		restswagger.RegisterRoutes(router, cfg.ServerPort, cfg.APIBasePath)
+		restswagger.RegisterRoutes(router, cfg.APIBasePath, cfg.SwaggerServerURL)
 	}
 
 	controllers.RegisterRoutes(router, cfg.APIBasePath, controllers.Controllers{

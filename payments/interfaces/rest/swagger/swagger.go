@@ -3,12 +3,13 @@ package swagger
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 // RegisterRoutes exposes a tiny Swagger UI backed by a local OpenAPI document.
-func RegisterRoutes(router *gin.Engine, serverPort, apiBasePath string) {
+func RegisterRoutes(router *gin.Engine, apiBasePath, serverURL string) {
 	router.GET("/swagger", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/swagger/")
 	})
@@ -16,7 +17,7 @@ func RegisterRoutes(router *gin.Engine, serverPort, apiBasePath string) {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(swaggerHTML()))
 	})
 	router.GET("/swagger/openapi.json", func(c *gin.Context) {
-		c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(openAPISpec(serverPort, apiBasePath)))
+		c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(openAPISpec(resolveServerURL(c, serverURL), apiBasePath)))
 	})
 }
 
@@ -45,7 +46,7 @@ func swaggerHTML() string {
 </html>`
 }
 
-func openAPISpec(serverPort, apiBasePath string) string {
+func openAPISpec(serverURL, apiBasePath string) string {
 	return fmt.Sprintf(`{
   "openapi": "3.0.3",
   "info": {
@@ -55,8 +56,8 @@ func openAPISpec(serverPort, apiBasePath string) string {
   },
   "servers": [
     {
-      "url": "http://localhost:%s",
-      "description": "Local"
+      "url": "%s",
+      "description": "Runtime"
     }
   ],
   "paths": {
@@ -778,5 +779,30 @@ func openAPISpec(serverPort, apiBasePath string) string {
       }
     }
   }
-}`, serverPort, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath)
+}`, serverURL, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath, apiBasePath)
+}
+
+func resolveServerURL(c *gin.Context, configuredURL string) string {
+	if trimmed := strings.TrimRight(strings.TrimSpace(configuredURL), "/"); trimmed != "" {
+		return trimmed
+	}
+	scheme := firstNonEmptyHeader(c.GetHeader("X-Forwarded-Proto"), c.Request.URL.Scheme)
+	if scheme == "" {
+		if c.Request.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+	host := firstNonEmptyHeader(c.GetHeader("X-Forwarded-Host"), c.Request.Host)
+	return scheme + "://" + strings.TrimSpace(host)
+}
+
+func firstNonEmptyHeader(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

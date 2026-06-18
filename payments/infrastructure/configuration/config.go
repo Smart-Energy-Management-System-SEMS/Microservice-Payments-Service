@@ -22,6 +22,7 @@ type Config struct {
 	ServerPort                    string
 	APIBasePath                   string
 	SwaggerEnabled                bool
+	SwaggerServerURL              string
 	AutoMigrate                   bool
 	KafkaEnsureTopics             bool
 	ConfigServiceURL              string
@@ -57,6 +58,7 @@ func Load() Config {
 		ServerPort:           firstNonEmpty(getEnv("PORT", ""), getEnv("SERVER_PORT", "8085")),
 		APIBasePath:          getEnv("API_BASE_PATH", "/api/v1"),
 		SwaggerEnabled:       strings.EqualFold(getEnv("SWAGGER_ENABLED", "true"), "true"),
+		SwaggerServerURL:     getEnv("SWAGGER_SERVER_URL", ""),
 		AutoMigrate:          strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
 		KafkaEnsureTopics:    strings.EqualFold(getEnv("KAFKA_ENSURE_TOPICS", "false"), "true"),
 		ConfigServiceURL:     getEnv("CONFIG_SERVICE_URL", ""),
