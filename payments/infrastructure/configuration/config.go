@@ -21,6 +21,7 @@ type Config struct {
 	AppEnv                        string
 	ServerPort                    string
 	APIBasePath                   string
+	SwaggerEnabled                bool
 	AutoMigrate                   bool
 	KafkaEnsureTopics             bool
 	ConfigServiceURL              string
@@ -55,6 +56,7 @@ func Load() Config {
 		AppEnv:               getEnv("APP_ENV", "development"),
 		ServerPort:           firstNonEmpty(getEnv("PORT", ""), getEnv("SERVER_PORT", "8085")),
 		APIBasePath:          getEnv("API_BASE_PATH", "/api/v1"),
+		SwaggerEnabled:       strings.EqualFold(getEnv("SWAGGER_ENABLED", "true"), "true"),
 		AutoMigrate:          strings.EqualFold(getEnv("DB_AUTO_MIGRATE", "true"), "true"),
 		KafkaEnsureTopics:    strings.EqualFold(getEnv("KAFKA_ENSURE_TOPICS", "false"), "true"),
 		ConfigServiceURL:     getEnv("CONFIG_SERVICE_URL", ""),
@@ -69,15 +71,17 @@ func Load() Config {
 		KafkaBrokers:                  splitCSV(getEnv("KAFKA_BROKERS", "")),
 		KafkaSecurityProtocol:         getEnv("KAFKA_SECURITY_PROTOCOL", ""),
 		KafkaSASLMechanism:            getEnv("KAFKA_SASL_MECHANISM", ""),
-		KafkaUsername:                 getEnv("KAFKA_USERNAME", ""),
-		KafkaPassword:                 getEnv("KAFKA_PASSWORD", ""),
+		KafkaUsername:                 getEnvWithFallback("KAFKA_USERNAME", "KAFKA_SASL_USERNAME", ""),
+		KafkaPassword:                 getEnvWithFallback("KAFKA_PASSWORD", "KAFKA_SASL_PASSWORD", ""),
 		KafkaClientID:                 kafkaClientID,
 		KafkaConsumerGroup:            firstNonEmpty(getEnvWithFallback("KAFKA_CONSUMER_GROUP", "KAFKA_GROUP_ID", ""), kafkaClientID+"-group"),
 		KafkaPaymentsEventsTopic:      firstNonEmpty(getEnv("KAFKA_TOPIC_PAYMENTS_EVENTS", ""), "payments.events"),
 		KafkaBillingEventsTopic:       firstNonEmpty(getEnv("KAFKA_TOPIC_BILLING_EVENTS", ""), "billing.events"),
 		KafkaSubscriptionsEventsTopic: firstNonEmpty(getEnv("KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS", ""), "subscriptions.events"),
 	}
+	cfg.KafkaUsername = normalizeKafkaUsername(cfg.KafkaUsername, cfg.KafkaBrokers)
 	applyConfigServiceOverrides(context.Background(), &cfg)
+	cfg.KafkaUsername = normalizeKafkaUsername(cfg.KafkaUsername, cfg.KafkaBrokers)
 	return cfg
 }
 
@@ -203,4 +207,30 @@ func topicForService(service string, topicsByService map[string][]string, expect
 		}
 	}
 	return ""
+}
+
+func normalizeKafkaUsername(username string, brokers []string) string {
+	trimmed := strings.TrimSpace(username)
+	if trimmed == "" {
+		return trimmed
+	}
+	if !looksLikeAzureEventHubsBroker(brokers) {
+		return trimmed
+	}
+	if strings.EqualFold(trimmed, "$ConnectionString") {
+		return "$ConnectionString"
+	}
+	if strings.EqualFold(trimmed, "ConnectionString") || strings.EqualFold(trimmed, "onnectionString") {
+		return "$ConnectionString"
+	}
+	return trimmed
+}
+
+func looksLikeAzureEventHubsBroker(brokers []string) bool {
+	for _, broker := range brokers {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(broker)), ".servicebus.windows.net") {
+			return true
+		}
+	}
+	return false
 }

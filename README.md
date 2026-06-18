@@ -9,6 +9,13 @@ Microservicio de pagos de SEMS. Expone endpoints REST de payment methods, paymen
 
 Ambos endpoints devuelven `200 OK`.
 
+## Swagger local
+
+- `GET /swagger/`
+- `GET /swagger/openapi.json`
+
+Desde Swagger puedes probar `POST /api/v1/payments/process` con un body de ejemplo ya cargado.
+
 ## Variables de entorno requeridas
 
 Base (Azure/local):

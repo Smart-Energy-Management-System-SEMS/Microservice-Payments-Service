@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	gormconfig "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/configuration"
 	gormrepos "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/repositories"
 	"Microservice-Payments-Service/payments/interfaces/rest/controllers"
+	restswagger "Microservice-Payments-Service/payments/interfaces/rest/swagger"
 )
 
 func main() {
@@ -65,6 +67,9 @@ func main() {
 		topics.SubscriptionsEvents,
 		topics.BillingEvents,
 	)
+	log.Printf("kafka username=[%s]", os.Getenv("KAFKA_USERNAME"))
+	log.Printf("kafka effective username=[%s]", cfg.KafkaUsername)
+	log.Printf("kafka password starts Endpoint=%t", strings.HasPrefix(os.Getenv("KAFKA_PASSWORD"), "Endpoint=sb://sems-kafka-ns.servicebus.windows.net/;"))
 	if cfg.KafkaEnsureTopics {
 		if err := kafkaadapter.EnsureTopics(kafkaConfig, topics); err != nil {
 			log.Fatalf("kafka topic ensure failed: %v", err)
@@ -108,6 +113,9 @@ func main() {
 	router.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "payments-service"})
 	})
+	if cfg.SwaggerEnabled {
+		restswagger.RegisterRoutes(router, cfg.ServerPort, cfg.APIBasePath)
+	}
 
 	controllers.RegisterRoutes(router, cfg.APIBasePath, controllers.Controllers{
 		PaymentMethods: controllers.NewPaymentMethodController(paymentMethodCommands, paymentMethodQueries),

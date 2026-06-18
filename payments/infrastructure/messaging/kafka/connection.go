@@ -38,15 +38,12 @@ func (c ConnectionConfig) dialer() *segmentio.Dialer {
 }
 
 func (c ConnectionConfig) transport() *segmentio.Transport {
+	dialer := c.dialer()
 	transport := &segmentio.Transport{
 		ClientID: c.ClientID,
 	}
-	if usesTLS(c.SecurityProtocol) {
-		transport.TLS = &tls.Config{MinVersion: tls.VersionTLS12}
-	}
-	if mechanism := c.saslMechanism(); mechanism != nil {
-		transport.SASL = mechanism
-	}
+	transport.TLS = dialer.TLS
+	transport.SASL = dialer.SASLMechanism
 	return transport
 }
 
