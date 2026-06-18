@@ -42,7 +42,6 @@ Adicionales del servicio:
 Compatibilidad:
 
 - El servicio prioriza `PORT`; si no existe, usa `SERVER_PORT`.
-- Si todavia existen variables legacy como `KAFKA_TOPIC_PAYMENT_PROCESSED` o `KAFKA_TOPIC_SUBSCRIPTION_CREATED`, se usan como fallback durante la migracion.
 
 ## Ejemplo Event Hubs / Azure (.env)
 
@@ -150,7 +149,7 @@ Eventos publicados en `payments.events`:
 Eventos publicados o consumidos en `billing.events`:
 
 - `invoice.generated` se publica cuando el pago se confirma y la factura queda generada.
-- `billing.payment.requested` o `payment.requested` pueden consumirse como disparadores de cobro si traen `subscription_id`, `user_id`, `payment_method_id`, `amount` y `currency` dentro de `data`.
+- `billing.payment.requested` puede consumirse como disparador de cobro si trae `subscription_id`, `user_id`, `payment_method_id`, `amount` y `currency` dentro de `data`.
 
 Eventos consumidos en `subscriptions.events`:
 
@@ -162,6 +161,7 @@ Envelope esperado:
 
 ```json
 {
+  "eventId": "uuid",
   "eventType": "payment.processed",
   "occurredAt": "2026-06-12T22:30:00Z",
   "data": {

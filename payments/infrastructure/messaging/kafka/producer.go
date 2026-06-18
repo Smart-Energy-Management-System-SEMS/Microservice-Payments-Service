@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	segmentio "github.com/segmentio/kafka-go"
 
 	"Microservice-Payments-Service/payments/domain/model/entities"
@@ -112,6 +113,7 @@ func (p *Producer) publish(ctx context.Context, topic string, key string, eventT
 	}
 	log.Printf("kafka publish started eventType=%s topic=%s key=%s", eventType, topic, key)
 	value, err := json.Marshal(map[string]interface{}{
+		"eventId":    uuid.NewString(),
 		"eventType":  eventType,
 		"occurredAt": time.Now().UTC(),
 		"data":       data,

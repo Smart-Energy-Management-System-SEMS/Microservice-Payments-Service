@@ -117,7 +117,7 @@ func (c *Consumer) handleMessage(ctx context.Context, topic string, value []byte
 			return err
 		}
 		return c.handler.HandleSubscriptionCancelled(ctx, event)
-	case "billing.payment.requested", "payment.requested":
+	case "billing.payment.requested":
 		event, err := acl.TranslateBillingPaymentRequested(value)
 		if err != nil {
 			return err

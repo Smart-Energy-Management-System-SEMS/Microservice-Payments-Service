@@ -23,16 +23,9 @@ type ServiceConfigResponse struct {
 }
 
 type KafkaTopicsConfig struct {
-	PaymentsEvents               string `json:"payments_events"`
-	BillingEvents                string `json:"billing_events"`
-	SubscriptionsEvents          string `json:"subscriptions_events"`
-	PaymentProcessed             string `json:"payment_processed"`
-	PaymentFailed                string `json:"payment_failed"`
-	InvoiceGenerated             string `json:"invoice_generated"`
-	PaymentMethodAdded           string `json:"payment_method_added"`
-	SubscriptionCreated          string `json:"subscription_created"`
-	SubscriptionRenewalRequested string `json:"subscription_renewal_requested"`
-	SubscriptionCancelled        string `json:"subscription_cancelled"`
+	PaymentsEvents      string `json:"payments_events"`
+	BillingEvents       string `json:"billing_events"`
+	SubscriptionsEvents string `json:"subscriptions_events"`
 }
 
 type KafkaConfigResponse struct {

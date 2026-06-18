@@ -66,34 +66,16 @@ func Load() Config {
 		StripeCurrency:       getEnv("STRIPE_CURRENCY", "pen"),
 		// Read the official KAFKA_TOPIC_* names first, but keep the legacy
 		// KAFKA_*_TOPIC variants as fallbacks so existing deployments keep working.
-		KafkaBrokers:          splitCSV(getEnv("KAFKA_BROKERS", "")),
-		KafkaSecurityProtocol: getEnv("KAFKA_SECURITY_PROTOCOL", ""),
-		KafkaSASLMechanism:    getEnv("KAFKA_SASL_MECHANISM", ""),
-		KafkaUsername:         getEnv("KAFKA_USERNAME", ""),
-		KafkaPassword:         getEnv("KAFKA_PASSWORD", ""),
-		KafkaClientID:         kafkaClientID,
-		KafkaConsumerGroup:    firstNonEmpty(getEnvWithFallback("KAFKA_CONSUMER_GROUP", "KAFKA_GROUP_ID", ""), kafkaClientID+"-group"),
-		KafkaPaymentsEventsTopic: firstNonEmpty(
-			getEnv("KAFKA_TOPIC_PAYMENTS_EVENTS", ""),
-			firstNonEmpty(
-				getEnv("KAFKA_PAYMENTS_EVENTS_TOPIC", ""),
-				firstNonEmpty(getEnvWithFallback("KAFKA_TOPIC_PAYMENT_PROCESSED", "KAFKA_PAYMENT_PROCESSED_TOPIC", ""), "payments.events"),
-			),
-		),
-		KafkaBillingEventsTopic: firstNonEmpty(
-			getEnv("KAFKA_TOPIC_BILLING_EVENTS", ""),
-			firstNonEmpty(
-				getEnv("KAFKA_BILLING_EVENTS_TOPIC", ""),
-				firstNonEmpty(getEnvWithFallback("KAFKA_TOPIC_INVOICE_GENERATED", "KAFKA_INVOICE_GENERATED_TOPIC", ""), "billing.events"),
-			),
-		),
-		KafkaSubscriptionsEventsTopic: firstNonEmpty(
-			getEnv("KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS", ""),
-			firstNonEmpty(
-				getEnv("KAFKA_SUBSCRIPTIONS_EVENTS_TOPIC", ""),
-				firstNonEmpty(getEnvWithFallback("KAFKA_TOPIC_SUBSCRIPTION_CREATED", "KAFKA_SUBSCRIPTION_CREATED_TOPIC", ""), "subscriptions.events"),
-			),
-		),
+		KafkaBrokers:                  splitCSV(getEnv("KAFKA_BROKERS", "")),
+		KafkaSecurityProtocol:         getEnv("KAFKA_SECURITY_PROTOCOL", ""),
+		KafkaSASLMechanism:            getEnv("KAFKA_SASL_MECHANISM", ""),
+		KafkaUsername:                 getEnv("KAFKA_USERNAME", ""),
+		KafkaPassword:                 getEnv("KAFKA_PASSWORD", ""),
+		KafkaClientID:                 kafkaClientID,
+		KafkaConsumerGroup:            firstNonEmpty(getEnvWithFallback("KAFKA_CONSUMER_GROUP", "KAFKA_GROUP_ID", ""), kafkaClientID+"-group"),
+		KafkaPaymentsEventsTopic:      firstNonEmpty(getEnv("KAFKA_TOPIC_PAYMENTS_EVENTS", ""), "payments.events"),
+		KafkaBillingEventsTopic:       firstNonEmpty(getEnv("KAFKA_TOPIC_BILLING_EVENTS", ""), "billing.events"),
+		KafkaSubscriptionsEventsTopic: firstNonEmpty(getEnv("KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS", ""), "subscriptions.events"),
 	}
 	applyConfigServiceOverrides(context.Background(), &cfg)
 	return cfg
@@ -143,25 +125,20 @@ func applyConfigServiceOverrides(ctx context.Context, cfg *Config) {
 	}
 	cfg.KafkaPaymentsEventsTopic = firstNonEmpty(
 		kafkaCfg.Topics.PaymentsEvents,
-		kafkaCfg.Topics.PaymentProcessed,
-		kafkaCfg.Topics.PaymentFailed,
-		kafkaCfg.Topics.PaymentMethodAdded,
-		firstTopicForService(serviceName, kafkaCfg.PublishTopics),
-		firstTopicForService(serviceName, kafkaCfg.ProducedTopics),
+		topicForService(serviceName, kafkaCfg.PublishTopics, "payments.events"),
+		topicForService(serviceName, kafkaCfg.ProducedTopics, "payments.events"),
 		cfg.KafkaPaymentsEventsTopic,
 	)
 	cfg.KafkaBillingEventsTopic = firstNonEmpty(
 		kafkaCfg.Topics.BillingEvents,
-		kafkaCfg.Topics.InvoiceGenerated,
+		topicForService(serviceName, kafkaCfg.PublishTopics, "billing.events"),
+		topicForService(serviceName, kafkaCfg.ProducedTopics, "billing.events"),
 		topicForService(serviceName, kafkaCfg.ConsumeTopics, "billing.events"),
 		topicForService(serviceName, kafkaCfg.ConsumedTopics, "billing.events"),
 		cfg.KafkaBillingEventsTopic,
 	)
 	cfg.KafkaSubscriptionsEventsTopic = firstNonEmpty(
 		kafkaCfg.Topics.SubscriptionsEvents,
-		kafkaCfg.Topics.SubscriptionCreated,
-		kafkaCfg.Topics.SubscriptionRenewalRequested,
-		kafkaCfg.Topics.SubscriptionCancelled,
 		topicForService(serviceName, kafkaCfg.ConsumeTopics, "subscriptions.events"),
 		topicForService(serviceName, kafkaCfg.ConsumedTopics, "subscriptions.events"),
 		cfg.KafkaSubscriptionsEventsTopic,
@@ -209,18 +186,6 @@ func splitCSV(value string) []string {
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func firstTopicForService(service string, topicsByService map[string][]string) string {
-	if len(topicsByService) == 0 {
-		return ""
-	}
-	for _, topic := range topicsByService[strings.TrimSpace(service)] {
-		if trimmed := strings.TrimSpace(topic); trimmed != "" {
 			return trimmed
 		}
 	}
