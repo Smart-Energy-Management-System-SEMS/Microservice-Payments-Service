@@ -16,6 +16,8 @@ import (
 	"Microservice-Payments-Service/payments/domain/repositories"
 	"Microservice-Payments-Service/payments/domain/services"
 )
+// PaymentCommandService gestiona los comandos de pago en la capa de aplicación.
+// Coordina las transacciones de pago, genera facturas e interactúa con proveedores externos.
 
 // PaymentCommandService holds the write use cases for payments (the "command"
 // side of CQRS, where commands change state). It lives in the application layer:
@@ -39,6 +41,10 @@ type PaymentCommandService struct {
 func NewPaymentCommandService(payments repositories.PaymentRepository, paymentMethods repositories.PaymentMethodRepository, invoices repositories.InvoiceRepository, provider outboundservices.PaymentProvider, publisher outboundservices.EventPublisher) *PaymentCommandService {
 	return &PaymentCommandService{payments: payments, paymentMethods: paymentMethods, invoices: invoices, provider: provider, publisher: publisher, statusMapper: services.PaymentStatusMapper{}}
 }
+// Process procesa un comando de pago.
+// Valida los IDs, verifica la autorización del usuario, crea una intención de pago
+// con el proveedor externo y maneja los cambios de estado resultantes.
+// Retorna el pago, la factura generada (si aplica) y un error si ocurre.
 
 // Process is the main use case: charge a customer for a subscription. It returns
 // three values (payment, invoice, error) which is idiomatic Go. The invoice may
@@ -116,6 +122,10 @@ func (s *PaymentCommandService) Process(ctx context.Context, command commands.Pr
 // MarkFromProvider updates an existing payment when the provider later tells us
 // its real outcome (typically via a webhook). It finds the payment by its Stripe
 // intent id, re-applies the status, saves, and runs the same follow-up logic.
+
+// MarkFromProvider actualiza el estado de un pago basado en la información del proveedor.
+// Se utiliza para webhook callbacks del proveedor de pago.
+
 func (s *PaymentCommandService) MarkFromProvider(ctx context.Context, stripePaymentIntentID string, providerStatus string) (*entities.Payment, *entities.Invoice, error) {
 	payment, err := s.payments.FindByStripePaymentIntentID(ctx, stripePaymentIntentID)
 	if err != nil {
@@ -127,6 +137,8 @@ func (s *PaymentCommandService) MarkFromProvider(ctx context.Context, stripePaym
 	}
 	return s.afterPaymentStatusChanged(ctx, payment)
 }
+// applyProviderStatus mapea el estado del proveedor externo al estado interno del pago.
+// Actualiza la entidad de pago con el estado y la intención de pago correspondiente.
 
 // applyProviderStatus maps the provider's raw status string to one of our domain
 // statuses and calls the matching method on the payment. Anything we don't
@@ -144,6 +156,9 @@ func (s *PaymentCommandService) applyProviderStatus(payment *entities.Payment, s
 		payment.MarkProcessing(stripePaymentIntentID)
 	}
 }
+// afterPaymentStatusChanged maneja las acciones que deben ocurrir después de un cambio de estado.
+// Si el pago se procesó correctamente, genera una factura y publica eventos.
+// Si falló o se canceló, publica un evento de fallo.
 
 // afterPaymentStatusChanged centralises the side effects that depend on the new
 // status, so both Process and MarkFromProvider behave identically:
@@ -172,6 +187,8 @@ func (s *PaymentCommandService) afterPaymentStatusChanged(ctx context.Context, p
 	}
 	return payment, nil, nil
 }
+// ensureInvoice garantiza que existe una factura para un pago específico.
+// Retorna la factura existente o crea una nueva si no existe.
 
 // ensureInvoice returns the existing invoice for a payment, or creates one if it
 // is missing. This makes the operation "idempotent": if a webhook arrives twice
