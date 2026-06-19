@@ -14,13 +14,20 @@ type eventEnvelope struct {
 }
 
 type subscriptionEventPayload struct {
-	SubscriptionID  string  `json:"subscription_id"`
-	UserID          string  `json:"user_id"`
-	PaymentMethodID string  `json:"payment_method_id"`
-	Amount          float64 `json:"amount"`
-	Currency        string  `json:"currency"`
-	Reason          string  `json:"reason"`
-	Source          string  `json:"source"`
+	SubscriptionID        string  `json:"subscription_id"`
+	SubscriptionIDLegacy  string  `json:"SubscriptionID"`
+	UserID                string  `json:"user_id"`
+	UserIDLegacy          string  `json:"UserID"`
+	PaymentMethodID       string  `json:"payment_method_id"`
+	PaymentMethodIDLegacy string  `json:"PaymentMethodID"`
+	Amount                float64 `json:"amount"`
+	AmountLegacy          float64 `json:"Amount"`
+	Currency              string  `json:"currency"`
+	CurrencyLegacy        string  `json:"Currency"`
+	Reason                string  `json:"reason"`
+	ReasonLegacy          string  `json:"Reason"`
+	Source                string  `json:"source"`
+	SourceLegacy          string  `json:"Source"`
 }
 
 func EventType(payload []byte) (string, error) {
@@ -96,19 +103,92 @@ func TranslateBillingPaymentRequested(payload []byte) (outboundservices.BillingP
 }
 
 func decodeSubscriptionEvent(payload []byte) (subscriptionEventPayload, error) {
+	var raw subscriptionEventPayload
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return subscriptionEventPayload{}, err
+	}
+
 	var envelope eventEnvelope
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return subscriptionEventPayload{}, err
 	}
 	if envelope.Data == nil {
-		return subscriptionEventPayload{}, errors.New("event payload requires data")
+		normalizeSubscriptionEvent(&raw)
+		return raw, nil
 	}
 	event := *envelope.Data
+	mergeSubscriptionEvent(&event, raw)
 	normalizeSubscriptionEvent(&event)
 	return event, nil
 }
 
+func mergeSubscriptionEvent(target *subscriptionEventPayload, fallback subscriptionEventPayload) {
+	if target.SubscriptionID == "" {
+		target.SubscriptionID = fallback.SubscriptionID
+	}
+	if target.SubscriptionIDLegacy == "" {
+		target.SubscriptionIDLegacy = fallback.SubscriptionIDLegacy
+	}
+	if target.UserID == "" {
+		target.UserID = fallback.UserID
+	}
+	if target.UserIDLegacy == "" {
+		target.UserIDLegacy = fallback.UserIDLegacy
+	}
+	if target.PaymentMethodID == "" {
+		target.PaymentMethodID = fallback.PaymentMethodID
+	}
+	if target.PaymentMethodIDLegacy == "" {
+		target.PaymentMethodIDLegacy = fallback.PaymentMethodIDLegacy
+	}
+	if target.Amount == 0 {
+		target.Amount = fallback.Amount
+	}
+	if target.AmountLegacy == 0 {
+		target.AmountLegacy = fallback.AmountLegacy
+	}
+	if target.Currency == "" {
+		target.Currency = fallback.Currency
+	}
+	if target.CurrencyLegacy == "" {
+		target.CurrencyLegacy = fallback.CurrencyLegacy
+	}
+	if target.Reason == "" {
+		target.Reason = fallback.Reason
+	}
+	if target.ReasonLegacy == "" {
+		target.ReasonLegacy = fallback.ReasonLegacy
+	}
+	if target.Source == "" {
+		target.Source = fallback.Source
+	}
+	if target.SourceLegacy == "" {
+		target.SourceLegacy = fallback.SourceLegacy
+	}
+}
+
 func normalizeSubscriptionEvent(event *subscriptionEventPayload) {
+	if event.SubscriptionID == "" {
+		event.SubscriptionID = event.SubscriptionIDLegacy
+	}
+	if event.UserID == "" {
+		event.UserID = event.UserIDLegacy
+	}
+	if event.PaymentMethodID == "" {
+		event.PaymentMethodID = event.PaymentMethodIDLegacy
+	}
+	if event.Amount == 0 {
+		event.Amount = event.AmountLegacy
+	}
+	if event.Currency == "" {
+		event.Currency = event.CurrencyLegacy
+	}
+	if event.Reason == "" {
+		event.Reason = event.ReasonLegacy
+	}
+	if event.Source == "" {
+		event.Source = event.SourceLegacy
+	}
 	event.SubscriptionID = strings.TrimSpace(event.SubscriptionID)
 	event.UserID = strings.TrimSpace(event.UserID)
 	event.PaymentMethodID = strings.TrimSpace(event.PaymentMethodID)
