@@ -41,3 +41,18 @@ func (h *SubscriptionEventsHandler) HandleSubscriptionCancelled(ctx context.Cont
 	log.Printf("subscription.cancelled received for subscription_id=%s user_id=%s", event.SubscriptionID, event.UserID)
 	return nil
 }
+
+func (h *SubscriptionEventsHandler) HandleBillingPaymentRequested(ctx context.Context, event outboundservices.BillingPaymentRequestedEvent) error {
+	_, _, err := h.payments.Process(ctx, commands.ProcessPaymentCommand{
+		SubscriptionID:  event.SubscriptionID,
+		UserID:          event.UserID,
+		PaymentMethodID: event.PaymentMethodID,
+		Amount:          event.Amount,
+		Currency:        event.Currency,
+		PaymentMethod:   "card",
+	})
+	if err != nil {
+		log.Printf("billing payment request processing failed source=%s: %v", event.Source, err)
+	}
+	return err
+}

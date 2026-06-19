@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	gormconfig "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/configuration"
 	gormrepos "Microservice-Payments-Service/payments/infrastructure/persistence/gorm/repositories"
 	"Microservice-Payments-Service/payments/interfaces/rest/controllers"
+	restswagger "Microservice-Payments-Service/payments/interfaces/rest/swagger"
 )
 
 func main() {
@@ -44,15 +46,38 @@ func main() {
 	webhookEventRepository := gormrepos.NewGormWebhookEventRepository(db)
 
 	topics := kafkaadapter.Topics{
-		PaymentProcessed:             cfg.KafkaPaymentProcessedTopic,
-		PaymentFailed:                cfg.KafkaPaymentFailedTopic,
-		InvoiceGenerated:             cfg.KafkaInvoiceGeneratedTopic,
-		PaymentMethodAdded:           cfg.KafkaPaymentMethodAddedTopic,
-		SubscriptionCreated:          cfg.KafkaSubscriptionCreatedTopic,
-		SubscriptionRenewalRequested: cfg.KafkaSubscriptionRenewalRequestedTopic,
-		SubscriptionCancelled:        cfg.KafkaSubscriptionCancelledTopic,
+		PaymentsEvents:      cfg.KafkaPaymentsEventsTopic,
+		BillingEvents:       cfg.KafkaBillingEventsTopic,
+		SubscriptionsEvents: cfg.KafkaSubscriptionsEventsTopic,
 	}
-	publisher := kafkaadapter.NewProducer(cfg.KafkaBrokers, topics)
+	kafkaConfig := kafkaadapter.ConnectionConfig{
+		Brokers:          cfg.KafkaBrokers,
+		SecurityProtocol: cfg.KafkaSecurityProtocol,
+		SASLMechanism:    cfg.KafkaSASLMechanism,
+		Username:         cfg.KafkaUsername,
+		Password:         cfg.KafkaPassword,
+		ClientID:         cfg.KafkaClientID,
+		ConsumerGroup:    cfg.KafkaConsumerGroup,
+	}
+	log.Printf(
+		"kafka configured brokers=%v produced_topics=[%s,%s] consumed_topics=[%s,%s]",
+		cfg.KafkaBrokers,
+		topics.PaymentsEvents,
+		topics.BillingEvents,
+		topics.SubscriptionsEvents,
+		topics.BillingEvents,
+	)
+	log.Printf("kafka username=[%s]", os.Getenv("KAFKA_USERNAME"))
+	log.Printf("kafka effective username=[%s]", cfg.KafkaUsername)
+	log.Printf("kafka password starts Endpoint=%t", strings.HasPrefix(os.Getenv("KAFKA_PASSWORD"), "Endpoint=sb://sems-kafka-ns.servicebus.windows.net/;"))
+	if cfg.KafkaEnsureTopics {
+		if err := kafkaadapter.EnsureTopics(kafkaConfig, topics); err != nil {
+			log.Fatalf("kafka topic ensure failed: %v", err)
+		}
+	} else {
+		log.Printf("kafka topic ensure skipped: KAFKA_ENSURE_TOPICS=%t", cfg.KafkaEnsureTopics)
+	}
+	publisher := kafkaadapter.NewProducer(kafkaConfig, topics)
 	paymentProvider := stripeadapter.NewAdapter(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
 
 	paymentMethodCommands := commandservices.NewPaymentMethodCommandService(paymentMethodRepository, paymentProvider, publisher)
@@ -64,7 +89,7 @@ func main() {
 	invoiceQueries := queryservices.NewInvoiceQueryService(invoiceRepository)
 
 	subscriptionHandler := eventhandlers.NewSubscriptionEventsHandler(paymentCommands)
-	consumer := kafkaadapter.NewConsumer(cfg.KafkaBrokers, cfg.KafkaClientID, topics, subscriptionHandler)
+	consumer := kafkaadapter.NewConsumer(kafkaConfig, topics, subscriptionHandler)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -85,6 +110,12 @@ func main() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "payments-service"})
 	})
+	router.GET("/api/v1/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "payments-service"})
+	})
+	if cfg.SwaggerEnabled {
+		restswagger.RegisterRoutes(router, cfg.APIBasePath, cfg.SwaggerServerURL)
+	}
 
 	controllers.RegisterRoutes(router, cfg.APIBasePath, controllers.Controllers{
 		PaymentMethods: controllers.NewPaymentMethodController(paymentMethodCommands, paymentMethodQueries),

@@ -4,53 +4,45 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strings"
 	"sync"
 
 	segmentio "github.com/segmentio/kafka-go"
 
 	"Microservice-Payments-Service/payments/application/eventhandlers"
+	"Microservice-Payments-Service/payments/application/outboundservices"
 	"Microservice-Payments-Service/payments/interfaces/acl"
 )
 
 type Consumer struct {
-	brokers  []string
-	clientID string
-	topics   Topics
-	handler  *eventhandlers.SubscriptionEventsHandler
-	readers  []*segmentio.Reader
-	wg       sync.WaitGroup
+	config  ConnectionConfig
+	topics  Topics
+	handler subscriptionEventHandler
+	readers []*segmentio.Reader
+	wg      sync.WaitGroup
 }
 
-func NewConsumer(brokers []string, clientID string, topics Topics, handler *eventhandlers.SubscriptionEventsHandler) *Consumer {
-	return &Consumer{brokers: brokers, clientID: clientID, topics: topics, handler: handler}
+type subscriptionEventHandler interface {
+	HandleSubscriptionCreated(ctx context.Context, event outboundservices.SubscriptionCreatedEvent) error
+	HandleSubscriptionRenewalRequested(ctx context.Context, event outboundservices.SubscriptionRenewalRequestedEvent) error
+	HandleSubscriptionCancelled(ctx context.Context, event outboundservices.SubscriptionCancelledEvent) error
+	HandleBillingPaymentRequested(ctx context.Context, event outboundservices.BillingPaymentRequestedEvent) error
+}
+
+func NewConsumer(config ConnectionConfig, topics Topics, handler *eventhandlers.SubscriptionEventsHandler) *Consumer {
+	return &Consumer{config: config, topics: topics, handler: handler}
 }
 
 func (c *Consumer) Start(ctx context.Context) error {
-	if len(c.brokers) == 0 {
+	if len(c.config.Brokers) == 0 {
 		log.Println("kafka consumer disabled: no brokers configured")
 		return nil
 	}
-	c.consume(ctx, c.topics.SubscriptionCreated, func(ctx context.Context, value []byte) error {
-		event, err := acl.TranslateSubscriptionCreated(value)
-		if err != nil {
-			return err
-		}
-		return c.handler.HandleSubscriptionCreated(ctx, event)
-	})
-	c.consume(ctx, c.topics.SubscriptionRenewalRequested, func(ctx context.Context, value []byte) error {
-		event, err := acl.TranslateSubscriptionRenewalRequested(value)
-		if err != nil {
-			return err
-		}
-		return c.handler.HandleSubscriptionRenewalRequested(ctx, event)
-	})
-	c.consume(ctx, c.topics.SubscriptionCancelled, func(ctx context.Context, value []byte) error {
-		event, err := acl.TranslateSubscriptionCancelled(value)
-		if err != nil {
-			return err
-		}
-		return c.handler.HandleSubscriptionCancelled(ctx, event)
-	})
+	for _, topic := range c.consumedTopics() {
+		c.consume(ctx, topic, func(ctx context.Context, topic string, value []byte) error {
+			return c.handleMessage(ctx, topic, value)
+		})
+	}
 	return nil
 }
 
@@ -65,16 +57,17 @@ func (c *Consumer) Close() error {
 	return lastErr
 }
 
-func (c *Consumer) consume(ctx context.Context, topic string, handle func(context.Context, []byte) error) {
+func (c *Consumer) consume(ctx context.Context, topic string, handle func(context.Context, string, []byte) error) {
 	if topic == "" {
 		return
 	}
 	reader := segmentio.NewReader(segmentio.ReaderConfig{
-		Brokers:  c.brokers,
+		Brokers:  c.config.Brokers,
 		Topic:    topic,
-		GroupID:  c.clientID + "-group",
+		GroupID:  c.config.ConsumerGroup,
 		MinBytes: 1,
 		MaxBytes: 10e6,
+		Dialer:   c.config.dialer(),
 	})
 	c.readers = append(c.readers, reader)
 	c.wg.Add(1)
@@ -89,7 +82,7 @@ func (c *Consumer) consume(ctx context.Context, topic string, handle func(contex
 				log.Printf("kafka fetch error topic=%s: %v", topic, err)
 				continue
 			}
-			if err := handle(ctx, message.Value); err != nil {
+			if err := handle(ctx, topic, message.Value); err != nil {
 				log.Printf("kafka handler error topic=%s partition=%d offset=%d: %v", topic, message.Partition, message.Offset, err)
 				continue
 			}
@@ -98,4 +91,47 @@ func (c *Consumer) consume(ctx context.Context, topic string, handle func(contex
 			}
 		}
 	}()
+}
+
+func (c *Consumer) handleMessage(ctx context.Context, topic string, value []byte) error {
+	eventType, err := acl.EventType(value)
+	if err != nil {
+		return err
+	}
+	switch strings.TrimSpace(eventType) {
+	case "subscription.created":
+		event, err := acl.TranslateSubscriptionCreated(value)
+		if err != nil {
+			return err
+		}
+		return c.handler.HandleSubscriptionCreated(ctx, event)
+	case "subscription.renewal.requested":
+		event, err := acl.TranslateSubscriptionRenewalRequested(value)
+		if err != nil {
+			return err
+		}
+		return c.handler.HandleSubscriptionRenewalRequested(ctx, event)
+	case "subscription.cancelled":
+		event, err := acl.TranslateSubscriptionCancelled(value)
+		if err != nil {
+			return err
+		}
+		return c.handler.HandleSubscriptionCancelled(ctx, event)
+	case "billing.payment.requested":
+		event, err := acl.TranslateBillingPaymentRequested(value)
+		if err != nil {
+			return err
+		}
+		return c.handler.HandleBillingPaymentRequested(ctx, event)
+	case "invoice.generated":
+		log.Printf("kafka event ignored topic=%s eventType=%s reason=downstream-output", topic, eventType)
+		return nil
+	default:
+		log.Printf("kafka event ignored topic=%s eventType=%s", topic, eventType)
+		return nil
+	}
+}
+
+func (c *Consumer) consumedTopics() []string {
+	return uniqueTopics(c.topics.SubscriptionsEvents, c.topics.BillingEvents)
 }

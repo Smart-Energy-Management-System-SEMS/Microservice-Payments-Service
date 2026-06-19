@@ -1,69 +1,125 @@
-# Microservice-Payments-Service
+﻿# Microservice-Payments-Service
 
 Microservicio de pagos de SEMS. Expone endpoints REST de payment methods, payments, invoices y webhook Stripe.
 
-## Ejecucion local (Gateway + Config-Service)
+## Health checks
 
-- Config-Service local: `http://localhost:8090`
-- API Gateway local: `http://localhost:8081`
-- Puerto local del microservicio: `8085`
-- Base URL local final: `http://localhost:8085`
-- Route prefix: `/api/v1`
+- `GET /health`
+- `GET /api/v1/health`
 
-## Health check
+Ambos endpoints devuelven `200 OK`.
 
-Endpoint publico sin autenticacion:
+## Swagger local
 
-- `GET /health` -> `200 OK`
+- `GET /swagger/`
+- `GET /swagger/openapi.json`
 
-## Configuracion por entorno
+Desde Swagger puedes probar `POST /api/v1/payments/process` con un body de ejemplo ya cargado.
 
-Copiar `.env.example` a `.env`.
+## Variables de entorno requeridas
 
-### Variables no sensibles
+Base (Azure/local):
+
+- `PORT` (ejemplo: `8080`)
+- `CONFIG_SERVICE_URL`
+- `KAFKA_BROKERS`
+- `KAFKA_SECURITY_PROTOCOL`
+- `KAFKA_SASL_MECHANISM`
+- `KAFKA_USERNAME`
+- `KAFKA_PASSWORD`
+- `DATABASE_URL`
+- `GIN_MODE` (recomendado en Azure: `release`)
+
+Adicionales del servicio:
 
 - `APP_ENV`
-- `GIN_MODE`
-- `SERVER_PORT`
 - `DB_AUTO_MIGRATE`
-- `CONFIG_SERVICE_URL`
 - `CORS_ALLOWED_ORIGINS`
 - `CORS_ALLOW_CREDENTIALS`
-- `API_BASE_PATH` (fallback)
-- `STRIPE_CURRENCY` (fallback)
-- `KAFKA_*` (fallback)
-
-### Variables sensibles
-
-- `DATABASE_URL`
+- `API_BASE_PATH`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_CURRENCY`
+- `KAFKA_CLIENT_ID`
+- `KAFKA_CONSUMER_GROUP`
+- `KAFKA_TOPIC_PAYMENTS_EVENTS`
+- `KAFKA_TOPIC_BILLING_EVENTS`
+- `KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS`
 
-## Config Service
+Compatibilidad:
 
-Si `CONFIG_SERVICE_URL` esta definido, el servicio consulta:
+- El servicio prioriza `PORT`; si no existe, usa `SERVER_PORT`.
 
-- `GET /api/v1/config/{service-name}`
-- `GET /api/v1/config/kafka`
-- `GET /api/v1/config/services` (opcional)
+## Ejemplo Event Hubs / Azure (.env)
 
-`service-name` usado: `payments-service`.
+```env
+PORT=8080
+CONFIG_SERVICE_URL=https://<config-service-url>
+KAFKA_BROKERS=<eventhubs-namespace>.servicebus.windows.net:9093
+KAFKA_SECURITY_PROTOCOL=SASL_SSL
+KAFKA_SASL_MECHANISM=PLAIN
+KAFKA_USERNAME=$ConnectionString
+KAFKA_PASSWORD=Endpoint=sb://<eventhubs-namespace>.servicebus.windows.net/;SharedAccessKeyName=<policy>;SharedAccessKey=<key>
+KAFKA_CLIENT_ID=payments-service
+KAFKA_CONSUMER_GROUP=payments-service-group
+KAFKA_TOPIC_PAYMENTS_EVENTS=payments.events
+KAFKA_TOPIC_BILLING_EVENTS=billing.events
+KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS=subscriptions.events
+DATABASE_URL=postgresql://USER:PASSWORD@<postgres-host>:5432/payments?sslmode=require
+GIN_MODE=release
+```
 
-Si Config-Service no responde, usa fallback del `.env`.
+## Docker
 
-## CORS local
+Build de imagen:
 
-Por defecto permite:
+```bash
+docker build -t sems-payments-service:local .
+```
 
-- `http://localhost:3000`
-- `http://localhost:5173`
+Run con archivo `.env`:
 
-Controlado por:
+```bash
+docker run --rm -p 8080:8080 --env-file .env --name sems-payments-service sems-payments-service:local
+```
 
-- `CORS_ALLOWED_ORIGINS`
-- `CORS_ALLOW_CREDENTIALS`
+Prueba rápida:
 
-## Endpoints reales
+```bash
+curl -i http://localhost:8080/api/v1/health
+```
+
+## Azure Container Apps
+
+El contenedor no debe usar `localhost` para servicios externos. Define variables en ACA con hosts reales para Config Service, Postgres y Azure Event Hubs.
+
+Variables mínimas recomendadas en ACA:
+
+```text
+PORT=8080
+GIN_MODE=release
+CONFIG_SERVICE_URL=https://<config-service-url>
+KAFKA_BROKERS=<eventhubs-namespace>.servicebus.windows.net:9093
+KAFKA_SECURITY_PROTOCOL=SASL_SSL
+KAFKA_SASL_MECHANISM=PLAIN
+KAFKA_USERNAME=$ConnectionString
+KAFKA_PASSWORD=Endpoint=sb://<eventhubs-namespace>.servicebus.windows.net/;SharedAccessKeyName=<policy>;SharedAccessKey=<key>
+KAFKA_CLIENT_ID=payments-service
+KAFKA_CONSUMER_GROUP=payments-service-group
+KAFKA_TOPIC_PAYMENTS_EVENTS=payments.events
+KAFKA_TOPIC_BILLING_EVENTS=billing.events
+KAFKA_TOPIC_SUBSCRIPTIONS_EVENTS=subscriptions.events
+DATABASE_URL=<conexion-postgres>
+```
+
+Checklist de despliegue ACA:
+
+- Exponer puerto objetivo `8080`.
+- Configurar secretos para `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `KAFKA_PASSWORD`.
+- Configurar egress a Kafka, Config Service y Stripe.
+- Configurar health probe sobre `GET /api/v1/health` (o `GET /health`).
+
+## Endpoints funcionales
 
 Con prefijo `/api/v1`:
 
@@ -79,44 +135,47 @@ Con prefijo `/api/v1`:
 - `GET /invoices/payment/:paymentId`
 - `POST /webhooks/stripe`
 
-## Auth/JWT con Gateway
+## Kafka topics agrupados
 
-Este microservicio no valida JWT internamente.
+Payments publica:
 
-- Si `API_GATEWAY_AUTH_REQUIRED=false`: se puede probar sin JWT.
-- Endpoints publicos recomendados en Gateway:
-  - `GET /health`
-  - `POST /api/v1/webhooks/stripe`
-- Endpoints protegidos recomendados:
-  - resto de `/api/v1/payment-methods`, `/api/v1/payments`, `/api/v1/invoices`
+- `payments.events`
+- `billing.events`
 
-## Dependencias locales
+Payments consume:
 
-Kafka local (ya levantado en `localhost:9092`) y Postgres accesible desde `DATABASE_URL`.
+- `subscriptions.events`
+- `billing.events`
 
-## Pruebas rapidas
+Eventos publicados en `payments.events`:
 
-Health del MS:
+- `payment.method.added`
+- `payment.processed`
+- `payment.failed`
 
-```bash
-curl -i http://localhost:8085/health
+Eventos publicados o consumidos en `billing.events`:
+
+- `invoice.generated` se publica cuando el pago se confirma y la factura queda generada.
+- `billing.payment.requested` puede consumirse como disparador de cobro si trae `subscription_id`, `user_id`, `payment_method_id`, `amount` y `currency` dentro de `data`.
+
+Eventos consumidos en `subscriptions.events`:
+
+- `subscription.created`
+- `subscription.cancelled`
+- `subscription.renewal.requested`
+
+Envelope esperado:
+
+```json
+{
+  "eventId": "uuid",
+  "eventType": "payment.processed",
+  "occurredAt": "2026-06-12T22:30:00Z",
+  "data": {
+    "payment_id": "uuid",
+    "subscription_id": "uuid",
+    "user_id": "uuid"
+  }
+}
 ```
 
-Endpoint principal del MS (ejemplo):
-
-```bash
-curl -i http://localhost:8085/api/v1/payments/user/test-user
-```
-
-Endpoint via Gateway (ejemplo proxied, ajusta path segun tu gateway):
-
-```bash
-curl -i http://localhost:8081/payments/api/v1/payments/user/test-user
-```
-
-## Azure Container Apps
-
-- Definir env vars no sensibles en la app.
-- Definir `DATABASE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` como secretos de ACA.
-- Health probe: `GET /health`.
-- Permitir egress a Config-Service, Kafka y Stripe.

@@ -24,6 +24,6 @@ COPY --from=builder /bin/payments-service /app/payments-service
 
 USER appuser
 
-EXPOSE 8085
+EXPOSE 8080
 
 ENTRYPOINT ["/app/payments-service"]

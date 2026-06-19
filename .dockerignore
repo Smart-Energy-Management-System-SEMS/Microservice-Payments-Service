@@ -6,7 +6,6 @@
 .env.*
 !.env.example
 README.md
-Dockerfile
 Dockerfile.*
 docker-compose*.yml
 main.exe
