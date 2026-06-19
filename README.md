@@ -164,18 +164,50 @@ Eventos consumidos en `subscriptions.events`:
 - `subscription.cancelled`
 - `subscription.renewal.requested`
 
-Envelope esperado:
+## Contrato de eventos Kafka
+
+Todos los eventos consumidos por este servicio esperan un envelope con esta forma:
 
 ```json
 {
   "eventId": "uuid",
-  "eventType": "payment.processed",
+  "eventType": "subscription.created",
   "occurredAt": "2026-06-12T22:30:00Z",
   "data": {
-    "payment_id": "uuid",
     "subscription_id": "uuid",
     "user_id": "uuid"
   }
 }
 ```
+
+Campos requeridos por evento:
+
+- `subscription.created`: `data.subscription_id`, `data.user_id`
+- `subscription.cancelled`: `data.subscription_id`, `data.user_id`
+- `subscription.renewal.requested`: `data.subscription_id`, `data.user_id`, `data.payment_method_id`, `data.amount`
+- `billing.payment.requested`: `data.subscription_id`, `data.user_id`, `data.payment_method_id`, `data.amount`
+
+Notas importantes:
+
+- El servicio lee `eventType` desde el nivel raíz del mensaje.
+- El payload funcional del evento debe venir dentro de `data`.
+- Los nombres de campos esperados son `snake_case`.
+- Si falta `data` o faltan campos obligatorios, el consumer registrará un `kafka handler error`.
+- Cuando el handler falla, el mensaje no se confirma (`commit`) y puede volver a procesarse en el siguiente intento del mismo consumer group.
+
+## Diagnóstico rápido de consumo Kafka
+
+Si el servicio arranca bien pero luego aparecen logs como:
+
+```text
+kafka handler error topic=subscriptions.events partition=0 offset=1: subscription.created payload requires subscription_id and user_id
+```
+
+significa que el proceso ya se conectó correctamente a Kafka, pero recibió un mensaje cuyo `data` no cumple el contrato esperado.
+
+Puntos a revisar:
+
+- El productor realmente está enviando `subscription_id` y `user_id` dentro de `data`.
+- El mensaje no pertenece a un formato legacy o a otro servicio con otro contrato.
+- El `KAFKA_CONSUMER_GROUP` no está releyendo mensajes antiguos incompatibles.
 
